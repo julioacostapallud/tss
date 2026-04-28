@@ -781,7 +781,10 @@ function ShellLayout() {
             >
               <Menu size={18} />
             </button>
-            <Link className="sg-header-brand" to="/home">SquatGym</Link>
+            <Link className="sg-header-brand" to="/home">
+              <img src="/squatgym-icon.svg" alt="SquatGym" />
+              <span>SquatGym</span>
+            </Link>
           </div>
           <div className="sg-header-right">
             <div className="sg-user-meta">
