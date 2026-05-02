@@ -1,8 +1,9 @@
 /* eslint-disable react/prop-types */
-export function GlobalFooter({ tone = 'light' }) {
+/** `docked`: en app logueado el pie queda pegado al borde inferior del viewport (siempre visible). */
+export function GlobalFooter({ tone = 'light', docked = false }) {
   const year = new Date().getFullYear()
   return (
-    <footer className={`sg-global-footer sg-global-footer--${tone}`} role="contentinfo">
+    <footer className={[`sg-global-footer`, `sg-global-footer--${tone}`, docked ? 'sg-global-footer--docked' : ''].filter(Boolean).join(' ')} role="contentinfo">
       <div className="sg-global-footer-inner">
         <p className="sg-global-footer-copy">
           © {year} SquatGym. Todos los derechos reservados.

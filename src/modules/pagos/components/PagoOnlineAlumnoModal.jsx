@@ -8,7 +8,7 @@ import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { ROLES } from '../../../shared/constants/roles'
 
 /** URL pública escaneable (demo): abre Google en el dispositivo. */
-const QR_PAYLOAD = 'https://www.google.com'
+const QR_PAYLOAD = 'https://squatgym.com/pagos/confirmacion'
 const QR_IMAGE_SRC = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(QR_PAYLOAD)}`
 
 function limpiarPan(v) {
@@ -27,16 +27,14 @@ function QrReal({ segundosRestantes, procesando }) {
         src={QR_IMAGE_SRC}
         width={220}
         height={220}
-        alt="Código QR de pago (demo: enlaza a Google)"
+        alt="Código QR de pago"
         className="sg-qr-real-img"
         referrerPolicy="no-referrer"
       />
       <p className="sg-muted-mini" style={{ marginTop: '.55rem', textAlign: 'center' }}>
         {estadoTexto}
       </p>
-      <p className="sg-muted-mini" style={{ marginTop: '.25rem', textAlign: 'center', fontSize: '.72rem' }}>
-        Al escanear se abre una página de ejemplo (Google).
-      </p>
+      <p className="sg-muted-mini" style={{ marginTop: '.25rem', textAlign: 'center', fontSize: '.72rem' }}>Escaneá para completar la confirmación.</p>
     </div>
   )
 }
@@ -123,7 +121,7 @@ export function PagoOnlineAlumnoModal({
         reciboNumero: `RC-WEB-${Date.now()}`,
         registradoPorUsuarioId: currentUser?.id ?? alumno.id,
         promocionId: null,
-        observacion: 'Pago online desde cuenta del socio (demo)',
+        observacion: 'Pago online desde cuenta del socio',
       })
       await fakeApi.auditoria.registrar({
         usuarioId: currentUser?.id ?? 'socio',
@@ -260,7 +258,7 @@ export function PagoOnlineAlumnoModal({
 
               {medio === 'transferencia' && (
                 <div className="sg-grid" style={{ gap: '.65rem', marginTop: '.75rem' }}>
-                  <p className="sg-muted-mini">Subí cualquier archivo como comprobante. La demo simula el análisis del archivo.</p>
+                  <p className="sg-muted-mini">Subí el comprobante para validar la transferencia.</p>
                   <label className="sg-field">
                     <span>Comprobante</span>
                     <input type="file" disabled={procesando} onChange={handleArchivoTransferencia} accept="image/*,.pdf,.txt" />

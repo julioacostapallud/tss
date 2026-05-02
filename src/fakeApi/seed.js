@@ -1,6 +1,6 @@
 import { ROLES } from '../shared/constants/roles'
 import { TURNOS } from '../shared/constants/turnos'
-import { calculateProratedAmount, periodosRolling } from '../modules/pagos/utils/pagosCalculations'
+import { calculateProratedAmount, comparePeriodosYM, maxPeriodoYm, periodosRolling } from '../modules/pagos/utils/pagosCalculations'
 
 const now = new Date()
 const todayIso = now.toISOString()
@@ -67,7 +67,7 @@ const planes = [
     nombre: 'Premium · musculación y clases ilimitadas',
     tipoMembresia: 'premium',
     precioMensual: 39200,
-    actividadesIncluidas: ['Sala libre', 'Funcional', 'Spinning', 'Stretching', 'Nutrición grupal mensual demo'],
+    actividadesIncluidas: ['Sala libre', 'Funcional', 'Spinning', 'Stretching', 'Nutrición grupal mensual'],
     permiteAccesoMultiSede: true,
   },
 ]
@@ -165,14 +165,14 @@ const users = [
 /** Coherente con los pagos que generamos después (al día / pendiente / vencido). */
 const TIER_CUENTA_BY_ALUMNO = {
   'al-01': 'alDia',
-  'al-02': 'pendiente',
-  'al-03': 'vencido',
-  'al-04': 'pendiente',
+  'al-02': 'alDia',
+  'al-03': 'pendiente',
+  'al-04': 'alDia',
   'al-05': 'alDia',
-  'al-06': 'vencido',
+  'al-06': 'pendiente',
   'al-07': 'alDia',
-  'al-08': 'pendiente',
-  'al-09': 'vencido',
+  'al-08': 'alDia',
+  'al-09': 'alDia',
   'al-10': 'alDia',
 }
 
@@ -206,7 +206,7 @@ const alumnosBase = alumnoSpecs.map((spec, idx) => {
   }
 })
 
-/** Promos demo reducidas: cuotas (pack meses / familiar) y un beneficio simple en kiosco.
+/** Promos vigentes: cuotas (pack meses / familiar) y un beneficio simple en kiosco.
  * aplicaAPlanIds vacío = todos los planes. */
 const promoProductosBebidas = ['prod-agua-ben', 'prod-gator-blue', 'prod-power-roj', 'prod-mon-ultra', 'prod-electrolitos']
 
@@ -416,7 +416,7 @@ function construirPagosCoherentes(alumnosList, periodoRef) {
       reciboNumero: `RC-R${idNum}`,
       registradoPorUsuarioId: 'u-sec-1',
       promocionId: null,
-      observacion: 'Rechazado por entidad emisora (demo)',
+      observacion: 'Rechazado por entidad emisora',
     })
     idNum += 1
   })
@@ -424,7 +424,41 @@ function construirPagosCoherentes(alumnosList, periodoRef) {
   return pagosList
 }
 
-const pagos = construirPagosCoherentes(alumnosBase, currentPeriod)
+/**
+ * Una sola fila pendiente válida por socio: período ≥ último cobro confirmado (no “en revisión” de hace años con meses siguientes ya pagados).
+ */
+function normalizarPagosAlumnos(pagosList) {
+  const porAlumno = new Map()
+  for (const p of pagosList) {
+    if (!porAlumno.has(p.alumnoId)) porAlumno.set(p.alumnoId, [])
+    porAlumno.get(p.alumnoId).push(p)
+  }
+
+  const salida = []
+  for (const rows of porAlumno.values()) {
+    const periodosConfirm = rows.filter((r) => r.estado === 'confirmado').map((r) => r.periodo)
+    const maxConf = maxPeriodoYm(periodosConfirm)
+
+    let guardarPendiente = null
+    const candidatosPend = rows.filter((r) => r.estado === 'pendiente')
+    for (const r of candidatosPend) {
+      if (maxConf && comparePeriodosYM(r.periodo, maxConf) < 0) continue
+      if (!guardarPendiente || comparePeriodosYM(r.periodo, guardarPendiente.periodo) > 0) guardarPendiente = r
+    }
+    const idPendOk = guardarPendiente?.id
+
+    for (const p of rows) {
+      if (p.estado === 'pendiente') {
+        if (idPendOk && p.id === idPendOk) salida.push(p)
+        continue
+      }
+      salida.push(p)
+    }
+  }
+  return salida
+}
+
+const pagos = normalizarPagosAlumnos(construirPagosCoherentes(alumnosBase, currentPeriod))
 
 const alumnos = alumnosBase.map((a) => {
   const plan = planes.find((pl) => pl.id === a.planId)
@@ -437,10 +471,10 @@ const alumnos = alumnosBase.map((a) => {
   }
 })
 
-const pedidoProductosDemo = ['prod-whey', 'prod-agua-ben', 'prod-creatina', 'prod-electrolitos', 'prod-bar-body', 'prod-mon-ultra', 'prod-shaker', 'prod-gator-blue', 'prod-creatina', 'prod-straps', 'prod-whey']
+const pedidoProductosBase = ['prod-whey', 'prod-agua-ben', 'prod-creatina', 'prod-electrolitos', 'prod-bar-body', 'prod-mon-ultra', 'prod-shaker', 'prod-gator-blue', 'prod-creatina', 'prod-straps', 'prod-whey']
 
 const pedidosReposicion = Array.from({ length: 11 }).map((_, idx) => {
-  const pid = pedidoProductosDemo[idx % pedidoProductosDemo.length]
+  const pid = pedidoProductosBase[idx % pedidoProductosBase.length]
   const pr = productos.find((p) => p.id === pid)
   return {
     id: `rep-${String(idx + 1).padStart(3, '0')}`,
@@ -478,16 +512,16 @@ function monthsBack(n) {
 
 const audiMonths = monthsBack(4)
 const auditoriaBootstrap = [
-  { id: 'aud-001', usuarioId: 'u-admin', rol: ROLES.ADMINISTRADOR, accion: 'inicialización', modulo: 'sistema', fechaHora: todayIso, detalle: 'Carga inicial de datos demo SquatGym' },
+  { id: 'aud-001', usuarioId: 'u-admin', rol: ROLES.ADMINISTRADOR, accion: 'inicialización', modulo: 'sistema', fechaHora: todayIso, detalle: 'Carga inicial de datos SquatGym' },
   { id: 'aud-002', usuarioId: 'u-sec-1', rol: ROLES.SECRETARIA, accion: 'registrar_pago_cuota', modulo: 'pagos', fechaHora: todayIso.slice(0, 11) + '10:12:03.000Z', detalle: 'Confirmación efectivo período mayo — alumna Lucía Fernández' },
   { id: 'aud-003', usuarioId: 'u-sec-2', rol: ROLES.SECRETARIA, accion: 'venta_presencial_kiosco', modulo: 'kiosco', fechaHora: todayIso.slice(0, 11) + '12:41:09.000Z', detalle: 'Venta Sucursal Norte — bebidas y barritas por $6850 (QR)' },
-  { id: 'aud-004', usuarioId: 'u-enc-1', rol: ROLES.ENCARGADO, accion: 'pedido_reposición', modulo: 'kiosco', fechaHora: todayIso.slice(0, 11) + '14:07:52.000Z', detalle: 'Sede Centro — whey bajo mínimo; creatina Norte en revisión (demo)' },
+  { id: 'aud-004', usuarioId: 'u-enc-1', rol: ROLES.ENCARGADO, accion: 'pedido_reposición', modulo: 'kiosco', fechaHora: todayIso.slice(0, 11) + '14:07:52.000Z', detalle: 'Sede Centro — whey bajo mínimo; creatina Norte en revisión' },
   { id: 'aud-005', usuarioId: 'u-admin', rol: ROLES.ADMINISTRADOR, accion: 'ajuste_precio_plan', modulo: 'pagos', fechaHora: todayIso.slice(0, 11) + '16:02:44.000Z', detalle: 'Plan familia +$1500 desde junio — promoción alineada' },
   { id: 'aud-006', usuarioId: 'u-admin', rol: ROLES.ADMINISTRADOR, accion: 'editar_promoción', modulo: 'pagos', fechaHora: todayIso.slice(0, 11) + '16:03:07.000Z', detalle: 'Promo “Bebidas (socio al día)” — revisión de vigencia' },
   { id: 'aud-007', usuarioId: 'u-enc-2', rol: ROLES.ENCARGADO, accion: 'recepción_reposición', modulo: 'kiosco', fechaHora: todayIso.slice(0, 11) + '09:18:00.000Z', detalle: 'Pedido recibido — electrolitos y agua (Sucursal Norte)' },
   { id: 'aud-008', usuarioId: 'u-sec-3', rol: ROLES.SECRETARIA, accion: 'venta_presencial_kiosco', modulo: 'kiosco', fechaHora: todayIso.slice(0, 11) + '11:55:11.000Z', detalle: 'Sucursal Sur — suplementación y shaker' },
   { id: 'aud-009', usuarioId: 'u-admin', rol: ROLES.ADMINISTRADOR, accion: 'ajuste_stock', modulo: 'kiosco', fechaHora: todayIso.slice(0, 11) + '08:30:00.000Z', detalle: 'Inventario físico — corrección +4 unidades remera dry-fit Sucursal Centro' },
-  { id: 'aud-010', usuarioId: 'u-al-02', rol: ROLES.ALUMNO, accion: 'pago_simulado_alumno', modulo: 'pagos', fechaHora: todayIso.slice(0, 11) + '20:11:40.000Z', detalle: 'Pago cuota vía QR — pendiente de conciliación (cuenta demo al-02)' },
+  { id: 'aud-010', usuarioId: 'u-al-02', rol: ROLES.ALUMNO, accion: 'pago_online_alumno', modulo: 'pagos', fechaHora: todayIso.slice(0, 11) + '20:11:40.000Z', detalle: 'Pago cuota vía QR — pendiente de conciliación' },
 ]
 
 audiMonths.forEach((mt, j) => {

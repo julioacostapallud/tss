@@ -36,7 +36,7 @@ export function HistorialPagosTable({ pagos, role, reload, currentUser }) {
         <div key={`acts-${item.id}`} className="sg-row-actions-inline">
           <NavLink className="sg-button sg-secondary" to={`/pagos/recibo/${item.id}`}>Ver recibo</NavLink>
           {role === ROLES.ADMINISTRADOR && item.estado === 'pendiente' ? (
-            <Button type="button" kind="ghost" onClick={() => confirmar(item)}>Confirmar (demo)</Button>
+            <Button type="button" kind="ghost" onClick={() => confirmar(item)}>Confirmar</Button>
           ) : null}
         </div>
       ),

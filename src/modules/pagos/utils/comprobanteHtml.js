@@ -1,7 +1,7 @@
 import { etiquetaMedioPago } from '../../../shared/constants/mediosPago'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
-/** HTML autocontenido para ver / guardar comprobante de cuota (demo). */
+/** HTML autocontenido para ver / guardar comprobante de cuota. */
 export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
   const titular = alumno ? `${alumno.apellido}, ${alumno.nombre}` : 'Socio'
   const dni = alumno?.dni ?? '—'
@@ -50,7 +50,7 @@ export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
     <article class="doc">
       <header class="head">
         <h1>SquatGym · Comprobante de cuota</h1>
-        <p>${pago.reciboNumero} · Documento no fiscal (simulación académica)</p>
+        <p>${pago.reciboNumero} · Comprobante digital</p>
         <span class="badge">Estado: ${pago.estado === 'confirmado' ? 'Abonado' : pago.estado}</span>
       </header>
       <div class="body">
@@ -69,7 +69,7 @@ export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
         </div>
       </div>
       <footer class="foot">
-        Conservá este comprobante como respaldo. En la demo no tiene validez tributaria.
+        Conservá este comprobante como respaldo.
         Para consultas, acercate a tu sede o escribinos desde la app.
       </footer>
     </article>

@@ -8,4 +8,5 @@ export const pagosService = {
   guardarPromocion: (promocion) => fakeApi.pagos.guardarPromocion(promocion),
   eliminarPromocion: (id) => fakeApi.pagos.eliminarPromocion(id),
   updatePlanPrice: (planId, price) => fakeApi.pagos.updatePlanPrice(planId, price),
+  agregarPlan: (plan) => fakeApi.pagos.agregarPlan(plan),
 }

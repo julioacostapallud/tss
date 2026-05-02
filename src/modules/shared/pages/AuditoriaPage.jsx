@@ -45,7 +45,7 @@ export default function AuditoriaPage() {
 
   return (
     <section className="sg-grid sg-auditoria">
-      <Card title="Auditoría de operaciones" subtitle="Trazabilidad simulada sobre acciones sensibles (pagos, kiosco, precios, stock, promociones). Las entradas nuevas se registran al ejecutar flujos desde la UI.">
+      <Card title="Auditoría de operaciones" subtitle="Trazabilidad de acciones sensibles por módulo y usuario.">
         <div className="sg-filters sg-filters-audit">
           <Select label="Módulo" value={modulo} onChange={(e) => setModulo(e.target.value)}>
             <option value="">Todos</option>

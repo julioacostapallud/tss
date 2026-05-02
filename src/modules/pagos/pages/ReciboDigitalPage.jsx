@@ -17,7 +17,7 @@ export default function ReciboDigitalPage() {
 
   return (
     <div className="sg-print-sheet">
-      <Card title={`Recibo ${pago.reciboNumero}`} subtitle="Documento fiscal simulado — SquatGym">
+      <Card title={`Recibo ${pago.reciboNumero}`} subtitle="Comprobante digital — SquatGym">
         <p><strong>Fecha:</strong> {pago.fechaPago}</p>
         <p><strong>Socio:</strong> {alumno?.apellido}, {alumno?.nombre} · DNI {alumno?.dni}</p>
         <p><strong>Sucursal donde se registró:</strong> {sede?.nombre}</p>

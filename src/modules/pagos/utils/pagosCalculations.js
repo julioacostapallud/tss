@@ -32,6 +32,22 @@ export const applyDiscount = (amount, promocion) => {
   return { descuento: Math.min(descuento, amount), final: Math.max(amount - descuento, 0) }
 }
 
+/** Comparación cronológica de períodos YYYY-MM (ascendente: a antes que b => -1). */
+export const comparePeriodosYM = (a, b) => {
+  if (!a || !b) return 0
+  if (a === b) return 0
+  const [ya, ma] = a.split('-').map(Number)
+  const [yb, mb] = b.split('-').map(Number)
+  if (ya !== yb) return ya < yb ? -1 : 1
+  return ma < mb ? -1 : ma > mb ? 1 : 0
+}
+
+/** Devuelve el período YYYY-MM más reciente de la lista, o null. */
+export const maxPeriodoYm = (periodos) => {
+  if (!periodos?.length) return null
+  return periodos.reduce((m, p) => (m && comparePeriodosYM(p, m) <= 0 ? m : p), null)
+}
+
 /** Lista períodos tipo YYYY-MM (últimos N meses a partir del mes base). */
 export const periodosRolling = (periodoActual, cantidadMeses = 14) => {
   const out = []

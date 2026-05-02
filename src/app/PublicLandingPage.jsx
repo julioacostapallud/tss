@@ -155,7 +155,7 @@ export function PublicLandingPage() {
           <div className="sg-landing-hero-bg" aria-hidden />
           <div className="sg-landing-hero-grid">
             <div className="sg-landing-hero-copy">
-              <p className="sg-landing-eyebrow">Cadena fitness · demo académica</p>
+              <p className="sg-landing-eyebrow">Cadena fitness</p>
               <h1 className="sg-landing-hero-title">
                 Entrená fuerte.
                 <span className="sg-landing-hero-accent"> Recuperá mejor.</span>
@@ -344,7 +344,7 @@ export function PublicLandingPage() {
         <section className="sg-landing-cta-final">
           <div className="sg-landing-wrap sg-landing-cta-final-inner">
             <h2>¿Listo para moverte?</h2>
-            <p>Ingresá con tu cuenta demo y explorá pagos, kiosco y paneles por rol.</p>
+            <p>Ingresá con tu cuenta para gestionar pagos, kiosco y operaciones.</p>
             <Link to="/login" className="sg-landing-btn sg-landing-btn-primary sg-landing-btn-lg">Iniciar sesión</Link>
           </div>
         </section>

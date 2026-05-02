@@ -4,7 +4,7 @@ import { SearchableSelect } from '../../../components/forms/SearchableSelect'
 import { MedioPagoSelector } from '../../pagos/components/MedioPagoSelector'
 import { useAppState } from '../../../app/AppState'
 import { kioscoService } from '../services/kiosco.service'
-import { etiquetaMedioPago } from '../../../shared/constants/mediosPago'
+import { MEDIOS_PAGO_VALORES, etiquetaMedioMostrador } from '../../../shared/constants/mediosPago'
 import { fakeApi } from '../../../fakeApi'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { TURNOS } from '../../../shared/constants/turnos'
@@ -20,7 +20,6 @@ export default function RegistrarVentaKioscoPage() {
   const { state, currentUser, reload } = useAppState()
   const [productoId, setProductoId] = useState('')
   const [cantidadLinea, setCantidadLinea] = useState(1)
-  const [observacion, setObservacion] = useState('')
   const [listaCobro, setListaCobro] = useState([])
   const [medioPago, setMedioPago] = useState('efectivo')
   const sedeId = currentUser?.sedeId || state.sedes[0]?.id
@@ -101,6 +100,10 @@ export default function RegistrarVentaKioscoPage() {
       window.alert('Primero armá la tabla de ítems (al menos una línea).')
       return
     }
+    if (!medioPago || !MEDIOS_PAGO_VALORES.includes(medioPago)) {
+      window.alert('Seleccioná el medio de pago con el que cobraron (efectivo, débito, crédito, QR o transferencia).')
+      return
+    }
     await kioscoService.registrarVenta({
       sedeId,
       fechaHora: new Date().toISOString(),
@@ -109,7 +112,7 @@ export default function RegistrarVentaKioscoPage() {
       items: listaCobro.map((ln) => ({ productoId: ln.productoId, cantidad: ln.cantidad, precioUnitario: ln.precioUnitario, subtotal: ln.subtotal })),
       total,
       medioPago,
-      observacion: observacion.trim() || 'Venta punto interno',
+      observacion: 'Venta punto interno',
     })
     await fakeApi.auditoria.registrar({
       usuarioId: currentUser.id,
@@ -119,7 +122,6 @@ export default function RegistrarVentaKioscoPage() {
       detalle: `Sucursal ${nombreSede} · líneas:${listaCobro.length} · total ${Math.round(total)} · ${medioPago}`,
     })
     setListaCobro([])
-    setObservacion('')
     reload()
   }
 
@@ -128,7 +130,7 @@ export default function RegistrarVentaKioscoPage() {
     cells: [
       v.fechaHora.slice(11, 16),
       v.items.map((it) => `${nombrePorProductoId[it.productoId] ?? it.productoId} ×${it.cantidad}`).join(', ') || '—',
-      etiquetaMedioPago(v.medioPago),
+      etiquetaMedioMostrador(v.medioPago),
       formatCurrency(v.total),
     ],
   }))
@@ -167,8 +169,7 @@ export default function RegistrarVentaKioscoPage() {
         <Card title={listaCobro.length ? `Líneas de venta (${listaCobro.length}) — total ${formatCurrency(total)}` : 'Sin líneas cargadas'}>
           {listaCobro.length ? <Table columns={['Producto', 'Precio lista', 'Cantidad', 'Subtotal', '']} rows={filas} /> : <p>Todavía no sumaste líneas. Usá el buscador y el botón para armar la lista.</p>}
           <div className="sg-cierre-venta-final">
-            <MedioPagoSelector label="Medio de cobro declarado en recepción" value={medioPago} onChange={setMedioPago} />
-            <Input label="Observación corta del turno (opcional)" value={observacion} onChange={(e) => setObservacion(e.target.value)} placeholder="Ej.: descuento de cortesía autorizado por encargadía…" />
+            <MedioPagoSelector variant="mostrador" label="Medio de pago" value={medioPago} onChange={setMedioPago} />
             <Button type="submit" disabled={!listaCobro.length}>{listaCobro.length ? `Registrar venta (${formatCurrency(total)})` : 'Confirmar cuando haya líneas'}</Button>
           </div>
         </Card>
@@ -176,7 +177,7 @@ export default function RegistrarVentaKioscoPage() {
 
       <Card title={`Ventas de hoy en ${nombreSede ?? 'esta sucursal'}`} subtitle="Se refresca al cargar la página o después de registrar un cobro nuevo.">
         {!filasVentasHoy.length ? (
-          <p className="sg-muted-mini">Aún no hay ventas cargadas para la fecha actual (demo).</p>
+          <p className="sg-muted-mini">Aún no hay ventas cargadas para la fecha actual.</p>
         ) : (
           <Table striped columns={['Hora', 'Ítems', 'Medio', 'Total']} rows={filasVentasHoy} />
         )}

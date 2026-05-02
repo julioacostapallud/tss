@@ -25,6 +25,21 @@ export function AppStateProvider({ children }) {
 
   const refresh = () => setState(fakeApi.init())
 
+  const cambiarContraseniaActual = async ({ contraseñaActual, contraseñaNueva }) => {
+    if (!currentUser) return { ok: false, message: 'No hay sesión activa.' }
+    const res = await fakeApi.auth.cambiarContrasenia({
+      userId: currentUser.id,
+      contraseñaActual,
+      contraseñaNueva,
+    })
+    if (!res.ok) return res
+    const next = fakeApi.init()
+    setState(next)
+    const actualizado = next.users.find((u) => u.id === currentUser.id)
+    if (actualizado) setCurrentUser(actualizado)
+    return res
+  }
+
   useEffect(() => {
     refresh()
   }, [])
@@ -37,6 +52,7 @@ export function AppStateProvider({ children }) {
       logout,
       resetDemoData,
       reload,
+      cambiarContraseniaActual,
     }),
     [state, currentUser],
   )

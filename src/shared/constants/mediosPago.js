@@ -31,3 +31,17 @@ export function etiquetaMedioPago(valorRaw) {
   const v = normalizarMedioCodigo(valorRaw)
   return mapEtiquetas[v] || valorRaw || '—'
 }
+
+/** Etiquetas cortas para select en mostrador (efectivo / POS / QR / transferencia). */
+export const MEDIOS_PAGO_LABELS_MOSTRADOR = Object.freeze({
+  efectivo: 'Efectivo',
+  tarjeta_debito: 'Débito',
+  tarjeta_credito: 'Crédito',
+  qr: 'QR',
+  transferencia: 'Transferencia',
+})
+
+export function etiquetaMedioMostrador(valorRaw) {
+  const v = normalizarMedioCodigo(valorRaw)
+  return MEDIOS_PAGO_LABELS_MOSTRADOR[v] ?? etiquetaMedioPago(valorRaw)
+}

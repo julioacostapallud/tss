@@ -3,6 +3,7 @@ import { fakeApi } from '../../../fakeApi'
 export const kioscoService = {
   listProductos: () => fakeApi.kiosco.listProductos(),
   actualizarPrecioProducto: (productoId, precio) => fakeApi.kiosco.actualizarPrecioProducto(productoId, precio),
+  agregarProducto: (payload) => fakeApi.kiosco.agregarProducto(payload),
   listStock: () => fakeApi.kiosco.listStock(),
   listVentas: () => fakeApi.kiosco.listVentas(),
   listReposiciones: () => fakeApi.kiosco.listReposiciones(),
@@ -11,4 +12,6 @@ export const kioscoService = {
   cambiarEstadoReposicion: (id, estado) => fakeApi.kiosco.cambiarEstadoReposicion(id, estado),
   ajustarStock: (payload) => fakeApi.kiosco.ajustarStock(payload),
   reportarFaltanteMostrador: (payload) => fakeApi.kiosco.reportarFaltante(payload),
+  marcarIncidenciaMostradorTratada: (payload) => fakeApi.kiosco.marcarIncidenciaMostradorTratada(payload),
+  marcarFaltantesMostradorTratadosProducto: (payload) => fakeApi.kiosco.marcarFaltantesMostradorTratadosProducto(payload),
 }

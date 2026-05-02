@@ -31,21 +31,22 @@ export default function EstadoCuentaAlumnoPage() {
   const pagosSocio = useMemo(() => (alumno ? state.pagos.filter((p) => p.alumnoId === alumno.id) : []), [alumno, state.pagos])
   const períodosLista = useMemo(() => [...periodosRolling(perCur, 13)].reverse(), [perCur])
 
-  const filasMes = useMemo(
-    () =>
-      períodosLista.map((per) => {
-        const pactado = calculateProratedAmount(plan?.precioMensual ?? 0, alumno?.fechaAlta, per)
-        const regs = pagosSocio.filter((p) => p.periodo === per)
-        const abonadoConfirmado = regs.filter((p) => p.estado === 'confirmado').reduce((a, b) => a + b.montoFinal, 0)
-        const espera = regs.some((p) => p.estado === 'pendiente')
-        const pagado = pactado > 0 && abonadoConfirmado >= pactado
-        const recibo = regs.find((p) => p.estado === 'confirmado')
-        const estadoLabel = pagado ? 'Pagado' : espera ? 'Pendiente (en revisión)' : 'Pendiente'
-        const puedePagarOnline = !pagado && !espera && pactado > 0
-        return { per, pactado, pagado, espera, puedePagarOnline, estadoLabel, recibo, planNombre: plan?.nombre ?? '—' }
-      }),
-    [alumno, pagosSocio, períodosLista, plan],
-  )
+  const filasMes = useMemo(() => {
+    const rows = períodosLista.map((per) => {
+      const pactado = calculateProratedAmount(plan?.precioMensual ?? 0, alumno?.fechaAlta, per)
+      const regs = pagosSocio.filter((p) => p.periodo === per)
+      const abonadoConfirmado = regs.filter((p) => p.estado === 'confirmado').reduce((a, b) => a + b.montoFinal, 0)
+      const espera = regs.some((p) => p.estado === 'pendiente')
+      const pagado = pactado > 0 && abonadoConfirmado >= pactado
+      const recibo = regs.find((p) => p.estado === 'confirmado')
+      const estadoLabel = pagado ? 'Pagado' : espera ? 'Pendiente (en revisión)' : 'Pendiente'
+      const puedePagarOnline = !pagado && !espera && pactado > 0
+      return { per, pactado, pagado, espera, puedePagarOnline, estadoLabel, recibo, planNombre: plan?.nombre ?? '—' }
+    })
+    const abierto = rows.filter((r) => !r.pagado).sort((a, b) => (a.per < b.per ? 1 : -1))
+    const cerrado = rows.filter((r) => r.pagado).sort((a, b) => (a.per < b.per ? 1 : -1))
+    return [...abierto, ...cerrado]
+  }, [alumno, pagosSocio, períodosLista, plan])
 
   const cuotaMesActual = calculateProratedAmount(plan?.precioMensual ?? 0, alumno?.fechaAlta, perCur)
   const cobradoActual = pagosSocio.filter((p) => p.periodo === perCur && p.estado === 'confirmado').reduce((a, b) => a + b.montoFinal, 0)

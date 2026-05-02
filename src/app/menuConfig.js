@@ -17,7 +17,7 @@ import {
 } from 'react-feather'
 import { ROLES } from '../shared/constants/roles'
 
-/** Cada entrada: vínculo real o marcador visual (demo: sin navegación). */
+/** Cada entrada: vínculo real o marcador visual sin navegación. */
 function placeholder(label, icon = Archive) {
   return { label, disabled: true, icon }
 }
@@ -30,12 +30,12 @@ export const menuConfigByRole = {
       items: [{ label: 'HOME', path: '/dashboard', icon: Home }],
     },
     {
-      section: 'Socios y cobranzas',
+      section: 'Socios y pagos',
       icon: CreditCard,
       items: [
         { label: 'Reporte de cuotas por sucursal', path: '/pagos/reporte', icon: BarChart2 },
         { label: 'Cuotas, precios y promociones', path: '/pagos/promociones', icon: Percent },
-        placeholder('Liquidaciones mensuales (equipo próximo)', Layers),
+        placeholder('Liquidaciones mensuales', Layers),
       ],
     },
     {
@@ -82,7 +82,7 @@ export const menuConfigByRole = {
       items: [{ label: 'HOME', path: '/dashboard', icon: Home }],
     },
     {
-      section: 'Cobranza socio',
+      section: 'Pagos de socios',
       icon: CreditCard,
       items: [
         { label: 'Pagos de cuota', path: '/pagos/registrar', icon: CreditCard },
@@ -111,7 +111,7 @@ export const menuConfigByRole = {
       items: [{ label: 'Resumen de cuenta y pagos', path: '/mi-cuenta/estado-cuenta', icon: FileText }, placeholder('Mi agenda de clase', Activity), placeholder('Beneficios Socios Platino', Percent)],
     },
     {
-      section: 'Espacio próximo equipo',
+      section: 'Más opciones',
       icon: Clipboard,
       items: [placeholder('Evaluaciones deportivas digitales', Activity), placeholder('Tienda institucional on-line', ShoppingCart)],
     },

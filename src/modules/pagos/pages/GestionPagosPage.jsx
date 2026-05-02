@@ -75,7 +75,18 @@ export default function GestionPagosPage() {
     })
   }
 
-  const historia = alumno ? [...state.pagos].filter((x) => x.alumnoId === alumno.id).sort((a, b) => (a.periodo < b.periodo ? 1 : -1)).slice(0, 22) : []
+  const historia = alumno
+    ? [...state.pagos]
+        .filter((x) => x.alumnoId === alumno.id)
+        .sort((a, b) => {
+          const aAbierto = a.estado !== 'confirmado'
+          const bAbierto = b.estado !== 'confirmado'
+          if (aAbierto !== bAbierto) return aAbierto ? -1 : 1
+          if (a.periodo !== b.periodo) return a.periodo < b.periodo ? 1 : -1
+          return 0
+        })
+        .slice(0, 22)
+    : []
   const historiaRows = historia.map((p) => ({
     key: p.id,
     cells: [
@@ -117,21 +128,26 @@ export default function GestionPagosPage() {
       const { descuentoAplicado, final: montoFinal } = applyDiscount(cuotaCalculadaBase, promocion)
       const estado = MEDIOS_DIGITALES.includes(medioPago) ? 'pendiente' : 'confirmado'
 
-      await pagosService.registrarPago({
-        alumnoId: alumno.id,
-        sedeId: currentUser?.sedeId || alumno.sedePrincipalId,
-        fechaPago: new Date().toISOString().slice(0, 10),
-        periodo,
-        montoBase: cuotaCalculadaBase,
-        descuentoAplicado,
-        montoFinal,
-        medioPago,
-        estado,
-        reciboNumero: `RC-${Date.now()}${Math.floor(Math.random() * 999)}`,
-        registradoPorUsuarioId: currentUser.id,
-        promocionId: promocionId || null,
-        observacion: `Cobro desde sucursal — ${promocion?.nombre ?? 'sin promoción'}`,
-      })
+      try {
+        await pagosService.registrarPago({
+          alumnoId: alumno.id,
+          sedeId: currentUser?.sedeId || alumno.sedePrincipalId,
+          fechaPago: new Date().toISOString().slice(0, 10),
+          periodo,
+          montoBase: cuotaCalculadaBase,
+          descuentoAplicado,
+          montoFinal,
+          medioPago,
+          estado,
+          reciboNumero: `RC-${Date.now()}${Math.floor(Math.random() * 999)}`,
+          registradoPorUsuarioId: currentUser.id,
+          promocionId: promocionId || null,
+          observacion: `Cobro desde sucursal — ${promocion?.nombre ?? 'sin promoción'}`,
+        })
+      } catch (e) {
+        errorList += `Período ${periodo}: ${e.message || 'Error al registrar'}.\n`
+        continue
+      }
       okTotal += 1
       await fakeApi.auditoria.registrar({
         usuarioId: currentUser.id,
@@ -179,7 +195,7 @@ export default function GestionPagosPage() {
       </div>
 
       {!alumno ? null : (
-        <Card title="Últimos cobros registrados para este socio">
+        <Card title="Últimos cobros registrados para este socio" subtitle="Arriba: pendientes de acreditar u otros no confirmados; debajo, cobros confirmados. Orden por período (más reciente primero) dentro de cada grupo.">
           <Table striped columns={['Período', 'Estado', 'Importe', 'Medio', 'Recibo']} rows={historiaRows} />
         </Card>
       )}
@@ -222,7 +238,7 @@ export default function GestionPagosPage() {
               </Select>
               <small className="sg-muted">{ayudaCupones(plan?.nombre, promosFiltradas.length)}</small>
               <MedioPagoSelector value={medioPago} onChange={setMedioPago} />
-              <small className="sg-muted">{MEDIOS_DIGITALES.includes(medioPago) ? 'Medio digital: el registro queda pendiente de acreditación (demo).' : 'Efectivo en ventanilla: confirmado al momento (demo).'}</small>
+              <small className="sg-muted">{MEDIOS_DIGITALES.includes(medioPago) ? 'Medio digital: el registro queda pendiente de acreditación.' : 'Efectivo en ventanilla: confirmado al momento.'}</small>
               <Button type="submit">Registrar cobro seleccionado — {periodosSeleccionados.size} período(s)</Button>
               {mensaje ? <small className="sg-success-mini">{mensaje}</small> : null}
             </Card>
@@ -244,6 +260,6 @@ export default function GestionPagosPage() {
 
 function ayudaCupones(nombrePlan, n) {
   if (!nombrePlan) return 'Sin plan asociado al socio seleccionado.'
-  if (!n) return `No hay promociones vigentes compatibles para ${nombrePlan} en este demo.`
+  if (!n) return `No hay promociones vigentes compatibles para ${nombrePlan}.`
   return `${n} promoción(es) vigentes compatibles con el plan ${nombrePlan}.`
 }
