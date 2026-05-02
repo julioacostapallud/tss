@@ -1,5 +1,3 @@
-import AppFrontend from './frontend/AppFrontend'
+import App from './app/App'
 
-export default function App() {
-  return <AppFrontend />
-}
+export default App
