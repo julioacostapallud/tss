@@ -1079,8 +1079,16 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
   transition: width 0.35s ease;
 }
 
-.sg-dash-chart-cell:last-child .sg-dash-hbar-fill {
-  background: linear-gradient(90deg, #eab308, #f97316);
+.sg-dash-svg-wrap--positive .sg-dash-hbar-fill {
+  background: linear-gradient(90deg, #0f766e, #22c55e);
+}
+
+.sg-dash-svg-wrap--negative .sg-dash-hbar-fill {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.sg-dash-svg-wrap--negative .sg-dash-svg-wrap-title {
+  color: #991b1b;
 }
 
 .sg-dash-hbar-money {
@@ -1158,7 +1166,7 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
 }
 
 .sg-dash-compare-fill--b {
-  background: #cbd5e1;
+  background: linear-gradient(90deg, #fdba74, #fb923c);
 }
 
 .sg-dash-compare--kiosco .sg-dash-compare-fill--a {
@@ -1166,7 +1174,7 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
 }
 
 .sg-dash-compare--kiosco .sg-dash-compare-fill--b {
-  background: rgba(45, 212, 191, 0.45);
+  background: linear-gradient(90deg, #6ee7b7, #34d399);
 }
 
 .sg-dash-compare-val {
@@ -1387,6 +1395,56 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
 .sg-print-sheet-head { margin-bottom: .5rem; }
 .sg-sale-items-list { margin: .25rem 0 0; padding-left: 1.15rem; color: #3a3a3a; font-size: .86rem; }
 .sg-sale-items-list li { margin: .15rem 0; }
+.sg-print-only { display: none; }
+.sg-report-pdf-fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 60;
+}
+.sg-report-pdf-fab .sg-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+}
+.sg-report-print-meta {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.85rem 1rem 0.95rem;
+  margin-bottom: 0.9rem;
+  background: #fff;
+}
+.sg-report-print-meta-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+.sg-report-print-meta-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.sg-report-print-meta-title {
+  margin: 0.12rem 0 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+.sg-report-print-meta-grid {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.83rem;
+  color: #334155;
+  line-height: 1.4;
+}
+.sg-report-print-meta-grid p {
+  margin: 0;
+}
 
 /* —— Reporte de pagos agrupado (por sucursal / medio) —— */
 .sg-reporte-kpi-hint {
@@ -1587,8 +1645,8 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #fdba74;
-  opacity: 0.92;
+  color: #fff;
+  opacity: 1;
 }
 .sg-reporte-grand-title {
   font-size: 1.2rem;
@@ -1634,12 +1692,44 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  .sg-table-wrap {
+    overflow: visible !important;
+  }
   .sg-reporte-grand-total {
     break-inside: avoid;
     background: #1a1a1a;
     box-shadow: none;
   }
   .sg-reporte-table tbody tr:hover { background: #fff; }
+  .sg-print-only { display: block !important; }
+  .sg-reporte-sede-bloque,
+  .sg-reporte-grand-total,
+  .sg-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  /* Evita huecos largos al forzar bloques grandes completos en una sola página */
+  .sg-report-page .sg-card,
+  .sg-report-page .sg-reporte-sede-bloque {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+  .sg-report-page .sg-reporte-sede-head,
+  .sg-report-page .sg-reporte-table thead,
+  .sg-report-page .sg-reporte-table tfoot,
+  .sg-report-page .sg-reporte-grand-total {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .sg-report-print-meta {
+    border-radius: 0;
+    border: 1px solid #d6dbe2;
+    margin-bottom: 0.6rem;
+  }
 }
 
 .sg-sede-block-title { margin: .5rem 0 .25rem; font-size: 1rem; color: #1a1a1a; }
@@ -1738,7 +1828,7 @@ h1 { margin: .2rem 0 1rem; font-size: 1.45rem; }
 
 @media print {
   body { background: #fff; print-color-adjust: exact; }
-  .sg-sidebar, .sg-header, .sg-backdrop, .sg-no-print { display: none !important; }
+  .sg-sidebar, .sg-header, .sg-backdrop, .sg-no-print, .sg-global-footer { display: none !important; }
   main { padding: 0 .4rem; }
   .sg-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
   .sg-layout { display: block; min-height: unset; }

@@ -4,6 +4,7 @@ import { useAppState } from '../../../app/AppState'
 import { ROLES } from '../../../shared/constants/roles'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { etiquetaMedioPago, MEDIOS_PAGO_ITEMS, normalizarMedioCodigo } from '../../../shared/constants/mediosPago'
+import ReportPrintTools from '../../shared/components/ReportPrintTools'
 
 function entreFechas(fechaPago, desde, hasta) {
   if (desde && fechaPago < desde) return false
@@ -95,45 +96,64 @@ export default function ReportePagosPage() {
     monto: pagos.reduce((a, p) => a + p.montoFinal, 0),
     confirmadosMonto: pagos.filter((p) => p.estado === 'confirmado').reduce((a, p) => a + p.montoFinal, 0),
   }), [pagos])
+  const nombreSedeFiltro = useMemo(() => {
+    if (!sedeEfectiva) return 'todas las sucursales'
+    return sedesOrdenadas.find((s) => s.id === sedeEfectiva)?.nombre ?? 'sucursal seleccionada'
+  }, [sedeEfectiva, sedesOrdenadas])
+  const periodoFiltro = useMemo(() => {
+    if (desde && hasta) return `${desde} a ${hasta}`
+    if (desde) return `desde ${desde}`
+    if (hasta) return `hasta ${hasta}`
+    return 'todos los períodos'
+  }, [desde, hasta])
+  const estadoFiltroTexto = estadoFil || 'todos los estados'
+  const consolidadoTexto = `Consolidado por filtro: (Sucursal: ${nombreSedeFiltro} · Período: ${periodoFiltro} · Estado: ${estadoFiltroTexto})`
 
   return (
-    <section className="sg-grid">
-      <Card title="Filtros del reporte" subtitle={admin ? 'Totales agrupados por sucursal y medio de pago.' : 'Totales agrupados por medio de pago en tu sede.'}>
-        <div className="sg-filters">
-          {encargado ? (
-            <Select label="Sucursal" value={currentUser.sedeId} disabled>
-              <option value={currentUser.sedeId}>{nombreSedeEncargado}</option>
+    <section className="sg-grid sg-report-page">
+      <ReportPrintTools
+        reportTitle="Reporte de pagos por sucursal"
+        filtersText={`Sucursal: ${nombreSedeFiltro} · Período: ${periodoFiltro} · Estado: ${estadoFiltroTexto} · Medio: ${medioFil ? etiquetaMedioPago(medioFil) : 'todos'}`}
+        currentUser={currentUser}
+      />
+      <div className="sg-no-print">
+        <Card title="Filtros del reporte" subtitle={admin ? 'Totales agrupados por sucursal y medio de pago.' : 'Totales agrupados por medio de pago en tu sede.'}>
+          <div className="sg-filters">
+            {encargado ? (
+              <Select label="Sucursal" value={currentUser.sedeId} disabled>
+                <option value={currentUser.sedeId}>{nombreSedeEncargado}</option>
+              </Select>
+            ) : (
+              <Select label="Sucursal" value={sedeFil} onChange={(e) => setSedeFil(e.target.value)}>
+                <option value="">Todas las sucursales</option>
+                {sedesOrdenadas.map((s) => (
+                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                ))}
+              </Select>
+            )}
+            <Input label="Pagos desde (fecha cobro registrada)" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <Input label="Pagos hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <Select label="Estado del registro de la cuota" value={estadoFil} onChange={(e) => setEstadoFil(e.target.value)}>
+              <option value="">Todos los estados</option>
+              <option value="confirmado">confirmado</option>
+              <option value="pendiente">pendiente</option>
+              <option value="rechazado">rechazado</option>
             </Select>
-          ) : (
-            <Select label="Sucursal" value={sedeFil} onChange={(e) => setSedeFil(e.target.value)}>
-              <option value="">Todas las sucursales</option>
-              {sedesOrdenadas.map((s) => (
-                <option key={s.id} value={s.id}>{s.nombre}</option>
+            <Select label="Medio declarado en el cobro" value={medioFil} onChange={(e) => setMedioFil(e.target.value)}>
+              <option value="">Todos</option>
+              {MEDIOS_PAGO_ITEMS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </Select>
-          )}
-          <Input label="Pagos desde (fecha cobro registrada)" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-          <Input label="Pagos hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-          <Select label="Estado del registro de la cuota" value={estadoFil} onChange={(e) => setEstadoFil(e.target.value)}>
-            <option value="">Todos los estados</option>
-            <option value="confirmado">confirmado</option>
-            <option value="pendiente">pendiente</option>
-            <option value="rechazado">rechazado</option>
-          </Select>
-          <Select label="Medio declarado en el cobro" value={medioFil} onChange={(e) => setMedioFil(e.target.value)}>
-            <option value="">Todos</option>
-            {MEDIOS_PAGO_ITEMS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </Select>
-        </div>
-      </Card>
-      <div className="sg-stats">
+          </div>
+        </Card>
+      </div>
+      <div className="sg-stats sg-no-print">
         <Stat label="Importe total (filtros)" value={formatCurrency(totalGeneral.monto)} />
         <Stat label="Monto sólo registros confirmados (misma sede/fecha/medio aplicados)" value={formatCurrency(totalGeneral.confirmadosMonto)} />
         <Stat label="Registros incluidos" value={String(totalGeneral.cantidad)} />
       </div>
-      <p className="sg-reporte-kpi-hint">
+      <p className="sg-reporte-kpi-hint sg-no-print">
         Medio habitual según estos filtros: <span className="sg-reporte-kpi-hint-strong">{medioPreferido(pagos)}</span>
       </p>
       <Card title="Totales por sucursal y medio de pago">
@@ -189,7 +209,7 @@ export default function ReportePagosPage() {
             <div className="sg-reporte-grand-total">
               <div className="sg-reporte-grand-total-inner">
                 <div className="sg-reporte-grand-label">
-                  <span className="sg-reporte-grand-kicker">Consolidado del filtro</span>
+                  <span className="sg-reporte-grand-kicker">{consolidadoTexto}</span>
                   <span className="sg-reporte-grand-title">Total general</span>
                 </div>
                 <div className="sg-reporte-grand-meta">{totalGeneral.cantidad} registros</div>

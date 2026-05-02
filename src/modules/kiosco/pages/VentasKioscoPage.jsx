@@ -5,6 +5,7 @@ import { useAppState } from '../../../app/AppState'
 import { ROLES } from '../../../shared/constants/roles'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { etiquetaMedioPago, MEDIOS_PAGO_ITEMS, normalizarMedioCodigo } from '../../../shared/constants/mediosPago'
+import ReportPrintTools from '../../shared/components/ReportPrintTools'
 
 const TURNO_UI = { manana: 'Mañana', tarde: 'Tarde', noche: 'Noche' }
 
@@ -101,9 +102,31 @@ export default function VentasKioscoPage() {
     .filter((s) => (agrupadas[s.id]?.length ?? 0) > 0)
 
   const ticketMedio = ventasFiltradas.length ? total / ventasFiltradas.length : 0
+  const nombreSedeFiltro = useMemo(() => {
+    if (!sedeFil) return admin ? 'todas las sucursales' : (state.sedes.find((s) => s.id === currentUser.sedeId)?.nombre ?? 'tu sede')
+    return sedesLista.find((s) => s.id === sedeFil)?.nombre ?? 'sucursal seleccionada'
+  }, [admin, currentUser.sedeId, sedeFil, sedesLista, state.sedes])
+  const periodoFiltro = useMemo(() => {
+    if (desde && hasta) return `${desde} a ${hasta}`
+    if (desde) return `desde ${desde}`
+    if (hasta) return `hasta ${hasta}`
+    return 'todos los períodos'
+  }, [desde, hasta])
+  const turnoFiltroTexto = turno ? (TURNO_UI[turno] ?? turno) : 'todos'
+  const cajeraFiltroTexto = secretariaId
+    ? (secretarias.find((u) => u.id === secretariaId)?.nombreCompleto ?? 'cajera seleccionada')
+    : 'todas'
+  const medioFiltroTexto = medio ? etiquetaMedioPago(medio) : 'todos'
+  const productoFiltroTexto = textoProducto.trim() ? `"${textoProducto.trim()}"` : 'todos'
+  const consolidadoTexto = `Consolidado por filtro: (Sucursal: ${nombreSedeFiltro} · Período: ${periodoFiltro} · Turno: ${turnoFiltroTexto} · Cajera: ${cajeraFiltroTexto} · Medio: ${medioFiltroTexto} · Producto: ${productoFiltroTexto})`
 
   return (
-    <section className="sg-grid">
+    <section className="sg-grid sg-report-page">
+      <ReportPrintTools
+        reportTitle="Ventas de SquatShop por sucursal"
+        filtersText={`Sucursal: ${nombreSedeFiltro} · Período: ${periodoFiltro} · Turno: ${turnoFiltroTexto} · Cajera: ${cajeraFiltroTexto} · Medio: ${medioFiltroTexto} · Producto: ${productoFiltroTexto}`}
+        currentUser={currentUser}
+      />
       <div className="sg-no-print">
         <Card title="Filtros">
           <div className="sg-filters">
@@ -141,9 +164,6 @@ export default function VentasKioscoPage() {
             </Select>
             <Input label="Buscar ítem vendido" placeholder="Ej. proteína…" value={textoProducto} onChange={(e) => setTextoProducto(e.target.value)} />
           </div>
-          <p className="sg-inline-actions" style={{ marginTop: '.5rem' }}>
-            <Button type="button" kind="ghost" onClick={() => window.print()}>Imprimir / PDF (navegador)</Button>
-          </p>
         </Card>
       </div>
 
@@ -153,7 +173,7 @@ export default function VentasKioscoPage() {
         <Stat label="Ticket medio" value={formatCurrency(ticketMedio)} />
       </div>
 
-      <div className="sg-print-sheet-head">
+      <div className="sg-print-sheet-head sg-no-print">
         <p className="sg-muted-mini">Listado de ventas kiosco · filtros aplicados · {new Date().toLocaleString('es-AR')}</p>
       </div>
 
@@ -234,7 +254,7 @@ export default function VentasKioscoPage() {
             <div className="sg-reporte-grand-total">
               <div className="sg-reporte-grand-total-inner">
                 <div className="sg-reporte-grand-label">
-                  <span className="sg-reporte-grand-kicker">Ventas kiosco · filtro actual</span>
+                  <span className="sg-reporte-grand-kicker">{consolidadoTexto}</span>
                   <span className="sg-reporte-grand-title">Total general</span>
                 </div>
                 <div className="sg-reporte-grand-meta">

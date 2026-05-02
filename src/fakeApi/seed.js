@@ -99,32 +99,70 @@ const productCatalog = [
 
 const productos = productCatalog.map((p) => ({ ...p, activo: true }))
 
-const alumnoSpecs = [
-  { nombre: 'Lucía', apellido: 'Fernández', slug: 'lucia.fernandez', dni: '38445129', fechaAlta: '2026-01-06' },
-  { nombre: 'Martín', apellido: 'Quinteros', slug: 'martin.quinteros', dni: '37111205', fechaAlta: '2026-02-14' },
-  { nombre: 'Camila', apellido: 'Ríos', slug: 'camila.rios', dni: '40233881', fechaAlta: '2026-03-18' },
-  { nombre: 'Juan Cruz', apellido: 'Villalba', slug: 'jc.villalba', dni: '39588440', fechaAlta: '2026-01-27' },
-  { nombre: 'Sofía', apellido: 'Benítez', slug: 'sofia.benitez', dni: '38887221', fechaAlta: '2026-04-02' },
-  { nombre: 'Nicolás', apellido: 'Gómez', slug: 'nico.gomez', dni: '35994410', fechaAlta: '2026-04-09' },
-  { nombre: 'Valentina', apellido: 'Acosta', slug: 'valen.acosta', dni: '41100233', fechaAlta: '2026-02-22' },
-  { nombre: 'Franco', apellido: 'Ledesma', slug: 'franco.ledesma', dni: '37221008', fechaAlta: '2026-03-07' },
-  { nombre: 'María José', apellido: 'Peralta', slug: 'majo.peralta', dni: '39922155', fechaAlta: '2026-01-16' },
-  { nombre: 'Sebastián', apellido: 'Rojas', slug: 'seba.rojas', dni: '36118890', fechaAlta: '2026-04-21' },
+const ALUMNOS_POR_SEDE = {
+  'sede-centro': 58,
+  'sede-norte': 52,
+  'sede-sur': 49,
+}
+
+const NOMBRES = [
+  'Lucia', 'Martin', 'Camila', 'Juan', 'Sofia', 'Nicolas', 'Valentina', 'Franco', 'Maria', 'Sebastian',
+  'Micaela', 'Tomas', 'Julieta', 'Agustin', 'Milagros', 'Bruno', 'Florencia', 'Thiago', 'Candela', 'Joaquin',
+  'Lourdes', 'Facundo', 'Carolina', 'Ignacio', 'Ariana', 'Federico', 'Paula', 'Matias', 'Antonella', 'Ramiro',
+  'Sol', 'Lucas', 'Catalina', 'Leandro', 'Nadia', 'Gonzalo', 'Jimena', 'Axel', 'Pilar', 'Santiago',
 ]
+
+const APELLIDOS = [
+  'Fernandez', 'Quinteros', 'Rios', 'Villalba', 'Benitez', 'Gomez', 'Acosta', 'Ledesma', 'Peralta', 'Rojas',
+  'Sosa', 'Diaz', 'Cardozo', 'Cabrera', 'Mendez', 'Ruiz', 'Silva', 'Morales', 'Paz', 'Vega',
+  'Aguirre', 'Molina', 'Navarro', 'Ponce', 'Suarez', 'Torres', 'Farina', 'Britez', 'Godoy', 'Coronel',
+]
+
+function normalizarSlug(valor) {
+  return valor
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.|\.$/g, '')
+}
+
+function fechaAltaPorIndice(i) {
+  const anioBase = now.getFullYear() - 1
+  const mes = (i * 5) % 12
+  const dia = ((i * 7) % 27) + 1
+  return `${anioBase + Math.floor((i * 5) / 12)}-${String((mes % 12) + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+}
+
+function tierCuentaPorPerfil(indiceSede, sedeId) {
+  if (sedeId === 'sede-centro') {
+    if (indiceSede % 11 === 0) return 'pendiente'
+    if (indiceSede === 37) return 'vencido'
+    return 'alDia'
+  }
+  if (sedeId === 'sede-norte') {
+    if (indiceSede % 10 === 0) return 'pendiente'
+    if (indiceSede === 41) return 'vencido'
+    return 'alDia'
+  }
+  if (indiceSede % 12 === 0) return 'pendiente'
+  if (indiceSede === 35) return 'vencido'
+  return 'alDia'
+}
 
 const users = [
   {
     id: 'u-admin',
     email: 'admin@squatgym.com',
     password: 'Admin123*',
-    nombreCompleto: 'Melisa López',
+    nombreCompleto: 'Melisa Lopez',
     role: ROLES.ADMINISTRADOR,
   },
   {
     id: 'u-enc-1',
     email: 'encargado.centro@squatgym.com',
     password: 'Encargado123*',
-    nombreCompleto: 'Adrián López',
+    nombreCompleto: 'Adrian Lopez',
     role: ROLES.ENCARGADO,
     sedeId: 'sede-centro',
   },
@@ -140,7 +178,7 @@ const users = [
     id: 'u-sec-1',
     email: 'secretaria.centro@squatgym.com',
     password: 'Secret123*',
-    nombreCompleto: 'Susana García',
+    nombreCompleto: 'Susana Garcia',
     role: ROLES.SECRETARIA,
     sedeId: 'sede-centro',
   },
@@ -148,7 +186,7 @@ const users = [
     id: 'u-sec-2',
     email: 'secretaria.norte@squatgym.com',
     password: 'Secret123*',
-    nombreCompleto: 'Belén Soto',
+    nombreCompleto: 'Belen Soto',
     role: ROLES.SECRETARIA,
     sedeId: 'sede-norte',
   },
@@ -162,47 +200,45 @@ const users = [
   },
 ]
 
-/** Coherente con los pagos que generamos después (al día / pendiente / vencido). */
-const TIER_CUENTA_BY_ALUMNO = {
-  'al-01': 'alDia',
-  'al-02': 'alDia',
-  'al-03': 'pendiente',
-  'al-04': 'alDia',
-  'al-05': 'alDia',
-  'al-06': 'pendiente',
-  'al-07': 'alDia',
-  'al-08': 'alDia',
-  'al-09': 'alDia',
-  'al-10': 'alDia',
-}
+const alumnosBase = []
+let alumnoSeq = 1
 
-const alumnosBase = alumnoSpecs.map((spec, idx) => {
-  const i = idx + 1
-  const sedeId = sedes[idx % sedes.length].id
-  const planId = planes[idx % planes.length].id
-  const alumnoId = `al-${String(i).padStart(2, '0')}`
-  const email = `${spec.slug}@squatgym.com`
-  users.push({
-    id: `u-${alumnoId}`,
-    email,
-    password: 'Alumno123*',
-    nombreCompleto: `${spec.nombre} ${spec.apellido}`,
-    role: ROLES.ALUMNO,
-    alumnoId,
-    sedeId,
-  })
-  return {
-    id: alumnoId,
-    nombre: spec.nombre,
-    apellido: spec.apellido,
-    dni: spec.dni,
-    email,
-    telefono: `+54 362 455 ${String(2000 + i).padStart(4, '0')}`,
-    sedePrincipalId: sedeId,
-    planId,
-    fechaAlta: spec.fechaAlta,
-    estado: 'activo',
-    observaciones: i % 5 === 0 ? 'Contrato próximo a renegociar.' : '',
+sedes.forEach((sede, sedeIdx) => {
+  const cantidad = ALUMNOS_POR_SEDE[sede.id] ?? 50
+  for (let j = 0; j < cantidad; j += 1) {
+    const i = alumnoSeq
+    const nombre = NOMBRES[(i + sedeIdx * 3) % NOMBRES.length]
+    const apellido = APELLIDOS[(i * 2 + sedeIdx) % APELLIDOS.length]
+    const alumnoId = `al-${String(i).padStart(3, '0')}`
+    const slug = normalizarSlug(`${nombre}.${apellido}.${String(i).padStart(3, '0')}`)
+    const email = `${slug}@squatgym.com`
+
+    users.push({
+      id: `u-${alumnoId}`,
+      email,
+      password: 'Alumno123*',
+      nombreCompleto: `${nombre} ${apellido}`,
+      role: ROLES.ALUMNO,
+      alumnoId,
+      sedeId: sede.id,
+    })
+
+    alumnosBase.push({
+      id: alumnoId,
+      nombre,
+      apellido,
+      dni: String(35000000 + i * 131).padStart(8, '0'),
+      email,
+      telefono: `+54 362 455 ${String(2000 + i).padStart(4, '0')}`,
+      sedePrincipalId: sede.id,
+      planId: planes[(i + sedeIdx) % planes.length].id,
+      indiceSede: j + 1,
+      fechaAlta: fechaAltaPorIndice(i),
+      estado: 'activo',
+      observaciones: i % 21 === 0 ? 'Seguimiento comercial semestral.' : '',
+    })
+
+    alumnoSeq += 1
   }
 })
 
@@ -257,30 +293,81 @@ const promociones = [
 
 const medios = ['efectivo', 'transferencia', 'qr', 'tarjeta_debito', 'tarjeta_credito']
 
-const ventasKiosco = Array.from({ length: 48 }).map((_, idx) => {
-  const i = idx + 1
-  const prodA = productos[idx % productos.length]
-  const prodB = productos[(idx + 3) % productos.length]
-  const qtyA = ((idx % 3) || 2) % 9
-  const qtyB = idx % 4 === 0 ? ((idx % 2) || 3) % 10 : 0
-  const items = [
-    { productoId: prodA.id, cantidad: Math.max(qtyA, 1), precioUnitario: prodA.precioVenta, subtotal: Math.max(qtyA, 1) * prodA.precioVenta },
-  ]
-  if (qtyB > 0) items.push({ productoId: prodB.id, cantidad: qtyB, precioUnitario: prodB.precioVenta, subtotal: qtyB * prodB.precioVenta })
-  const total = items.reduce((a, it) => a + it.subtotal, 0)
-  const dayOffset = idx % 12
-  return {
-    id: `ven-${String(i).padStart(4, '0')}`,
-    sedeId: sedes[idx % sedes.length].id,
-    fechaHora: new Date(2026, 4, dayOffset || 4, 8 + (idx % 11), idx % 4 === 0 ? 0 : 15 + (idx % 40)).toISOString(),
-    turno: TURNOS[idx % TURNOS.length],
-    secretariaId: idx % 3 === 0 ? 'u-sec-1' : idx % 3 === 1 ? 'u-sec-2' : 'u-sec-3',
-    items,
-    total,
-    medioPago: medios[idx % medios.length],
-    observacion: '',
+function daysInMonth(year, month0) {
+  return new Date(year, month0 + 1, 0).getDate()
+}
+
+const sedesPorSecretaria = {
+  'sede-centro': 'u-sec-1',
+  'sede-norte': 'u-sec-2',
+  'sede-sur': 'u-sec-3',
+}
+
+function buildVentasKiosco() {
+  const out = []
+  let idVenta = 1
+  const hoy = new Date(now.getFullYear(), now.getMonth(), 15)
+
+  for (let monthAgo = 5; monthAgo >= 0; monthAgo -= 1) {
+    const mesRef = new Date(hoy.getFullYear(), hoy.getMonth() - monthAgo, 1)
+    const y = mesRef.getFullYear()
+    const m0 = mesRef.getMonth()
+    const dias = daysInMonth(y, m0)
+
+    sedes.forEach((sede, sIdx) => {
+      const base = sede.id === 'sede-centro' ? 4 : 3
+      for (let day = 1; day <= dias; day += 1) {
+        const nVentas = base + ((day + monthAgo + sIdx) % 3)
+
+        for (let n = 0; n < nVentas; n += 1) {
+          const idx = idVenta + day + sIdx * 11
+          const prodA = productos[idx % productos.length]
+          const prodB = productos[(idx + 7) % productos.length]
+          const qtyA = 1 + (idx % 3)
+          const qtyB = (idx % 5 === 0 || idx % 7 === 0) ? 1 + (idx % 2) : 0
+
+          const items = [
+            {
+              productoId: prodA.id,
+              cantidad: qtyA,
+              precioUnitario: prodA.precioVenta,
+              subtotal: qtyA * prodA.precioVenta,
+            },
+          ]
+          if (qtyB > 0) {
+            items.push({
+              productoId: prodB.id,
+              cantidad: qtyB,
+              precioUnitario: prodB.precioVenta,
+              subtotal: qtyB * prodB.precioVenta,
+            })
+          }
+
+          const total = items.reduce((acc, it) => acc + it.subtotal, 0)
+          const hour = 8 + (idx % 13)
+          const minute = (idx * 7) % 60
+
+          out.push({
+            id: `ven-${String(idVenta).padStart(5, '0')}`,
+            sedeId: sede.id,
+            fechaHora: new Date(y, m0, day, hour, minute, 0).toISOString(),
+            turno: TURNOS[(day + n) % TURNOS.length],
+            secretariaId: sedesPorSecretaria[sede.id],
+            items,
+            total,
+            medioPago: medios[(idx + day) % medios.length],
+            observacion: '',
+          })
+          idVenta += 1
+        }
+      }
+    })
   }
-})
+
+  return out
+}
+
+const ventasKiosco = buildVentasKiosco()
 
 function ventasPorSedeProducto(ventas) {
   const m = {}
@@ -331,7 +418,7 @@ function deriveEstadoCuenta(alumno, plan, pagosDeSocio, periodoRef) {
   return 'vencido'
 }
 
-/** Cuotas mes a mes coherentes con TIER_CUENTA_BY_ALUMNO y el período corriente del metadata. */
+/** Cuotas mes a mes coherentes con el perfil de pago por sede y el período corriente del metadata. */
 function construirPagosCoherentes(alumnosList, periodoRef) {
   const roll = periodosRolling(periodoRef, 12)
   const pagosList = []
@@ -340,7 +427,7 @@ function construirPagosCoherentes(alumnosList, periodoRef) {
   for (const alumno of alumnosList) {
     const plan = planes.find((pl) => pl.id === alumno.planId)
     if (!plan) continue
-    const tier = TIER_CUENTA_BY_ALUMNO[alumno.id] || 'vencido'
+    const tier = tierCuentaPorPerfil(alumno.indiceSede || 1, alumno.sedePrincipalId)
 
     for (let k = roll.length - 1; k >= 0; k -= 1) {
       const per = roll[k]
@@ -395,8 +482,8 @@ function construirPagosCoherentes(alumnosList, periodoRef) {
   }
 
   const histReject = [
-    { alumnoId: 'al-01', periodo: '2024-10', monto: 12000 },
-    { alumnoId: 'al-04', periodo: '2024-11', monto: 15000 },
+    { alumnoId: 'al-001', periodo: '2024-10', monto: 12000 },
+    { alumnoId: 'al-004', periodo: '2024-11', monto: 15000 },
   ]
   histReject.forEach((row) => {
     const a = alumnosList.find((x) => x.id === row.alumnoId)
@@ -537,7 +624,7 @@ audiMonths.forEach((mt, j) => {
 })
 
 export const initialSeed = {
-  metadata: { currentPeriod, createdAt: todayIso },
+  metadata: { currentPeriod, createdAt: todayIso, seedVersion: 9 },
   sedes,
   users,
   alumnos,

@@ -170,19 +170,20 @@ function DashboardAlumno() {
   )
 }
 
-function AdminSedeBars({ sedes, valores, titulo }) {
+function AdminSedeBars({ sedes, valores, titulo, valueType = 'currency', tone = 'default' }) {
   const max = Math.max(...valores, 1)
   return (
-    <div className="sg-dash-svg-wrap" aria-label={titulo}>
+    <div className={`sg-dash-svg-wrap sg-dash-svg-wrap--${tone}`} aria-label={titulo}>
       <p className="sg-dash-svg-wrap-title">{titulo}</p>
       {sedes.map((nombre, i) => {
         const v = valores[i] ?? 0
         const pct = Math.round((v / max) * 100)
+        const etiquetaSede = nombre.replace('SquatGym ', '')
         return (
           <div key={nombre} className="sg-dash-hbar-row">
-            <span className="sg-dash-hbar-label" title={nombre}>{nombre.length > 16 ? `${nombre.slice(0, 14)}…` : nombre}</span>
+            <span className="sg-dash-hbar-label" title={nombre}>{etiquetaSede}</span>
             <div className="sg-dash-hbar-track"><div className="sg-dash-hbar-fill" style={{ width: `${pct}%` }} /></div>
-            <span className="sg-dash-hbar-money">{formatCurrency(v)}</span>
+            <span className="sg-dash-hbar-money">{valueType === 'count' ? String(v) : formatCurrency(v)}</span>
           </div>
         )
       })}
@@ -246,6 +247,9 @@ function DashboardAdmin() {
           </Link>
           <Link className="sg-button sg-primary" to="/kiosco/ventas">
             Ventas SquatShop <ArrowRight size={16} aria-hidden />
+          </Link>
+          <Link className="sg-button sg-primary" to="/kiosco/stock">
+            Stock <ArrowRight size={16} aria-hidden />
           </Link>
         </div>
       </header>
@@ -312,6 +316,7 @@ function DashboardAdmin() {
             sedes={sedesOrdenadas.map((s) => s.nombre)}
             valores={ventasPorSede}
             titulo={`SquatShop por sede · ${per}`}
+            tone="positive"
           />
         </div>
         <div className="sg-dash-chart-cell">
@@ -319,6 +324,8 @@ function DashboardAdmin() {
             sedes={sedesOrdenadas.map((s) => s.nombre)}
             valores={sociosSinCobroPorSede}
             titulo={`Socios sin cuota confirmada · ${per}`}
+            valueType="count"
+            tone="negative"
           />
         </div>
       </div>
