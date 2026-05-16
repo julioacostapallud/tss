@@ -1,228 +1,241 @@
 # Mapa de navegación — SquatGym UI
 
-Protótipo front-end (`squatgym-ui`). Fuente: `src/app/routes.jsx`, `src/app/menuConfig.js`, enlaces y alertas en pantallas.
+Protótipo front-end. Cada rol tiene su **numeración propia** (no se comparte entre roles).
 
 ## Leyenda
 
-| Símbolo / estilo | Significado |
-|------------------|-------------|
-| Línea continua `-->` | Navegación habitual (menú lateral, botón, enlace) |
-| Línea punteada `-.->` | Redirección automática o acceso secundario |
-| Línea con etiqueta `🔔` | Centro de alertas (campana del header) |
-| Nodo `((Modal))` | Pantalla superpuesta **sin cambio de URL** |
-| `[/ruta]` | Ruta en el navegador |
+| Símbolo | Significado |
+|---------|-------------|
+| `──►` en diagrama | Menú lateral, botón o enlace en pantalla |
+| `┄┄►` en diagrama | Redirección automática |
+| `🔔` | Acceso desde centro de alertas (header) |
+| **M-xx** | Modal (misma pantalla, sin cambio de vista principal) |
+
+**Diagramas:** líneas rectas (`curve: linear`) y un solo nivel desde **Inicio** para evitar cruces.
 
 ---
 
-## Tabla: pantallas por rol
+## Catálogo — Acceso público (P)
 
-| Ruta | Título | Admin | Encargado | Secretaria | Alumno | Menú lateral |
-|------|--------|:-----:|:---------:|:----------:|:------:|:------------:|
-| `/` | Landing pública | — | — | — | — | — |
-| `/login` | Iniciar sesión | ✓ | ✓ | ✓ | ✓ | — |
-| `/recuperar-contrasena` | Recuperar contraseña | ✓ | ✓ | ✓ | ✓ | — |
-| `/recuperar-contrasena/:token` | Restablecer contraseña | ✓ | ✓ | ✓ | ✓ | — |
-| `/dashboard` | HOME | ✓ | ✓ | ✓ | ✓ | Inicio |
-| `/pagos/reporte` | Reporte de cuotas | ✓ | ✓ | — | — | Cuotas y Cobros |
-| `/pagos/promociones` | Planes y promociones | ✓ | — | — | — | Planes y Promociones |
-| `/pagos/registrar` | Pagos de cuota | — | — | ✓ | — | Registro de Pagos |
-| `/pagos/recibo/:id` | Recibo digital (página) | ✓ | ✓ | ✓ | ✓ | — |
-| `/kiosco/ventas` | Ventas SquatShop | ✓ | ✓ | — | — | Ventas |
-| `/kiosco/stock` | Stock por sucursal | ✓ | ✓ | ✓ | — | Stock / Consulta |
-| `/kiosco/venta` | SquatShop ventas (caja) | — | — | ✓ | — | Ventas |
-| `/auditoria` | Auditoría | ✓ | — | — | — | Auditoría |
-| `/mi-cuenta/estado-cuenta` | Resumen de cuenta | — | — | — | ✓ | Estado de Cuenta |
-| `/mi-cuenta/pagar` | — | — | — | — | ✓* | — |
-| `/mi-cuenta/pagos` | — | — | — | — | ✓* | — |
-
-\*Redirigen a `/mi-cuenta/estado-cuenta` (anclas `#pagar-desde-app` / `#historial-recibos`).
-
-**Shell común (todos los autenticados):** logo → `/dashboard`; campana → rutas de alertas; cerrar sesión → `/` (sin sesión).
+| Nº | Pantalla |
+|----|----------|
+| P-01 | Landing SquatGym |
+| P-02 | Iniciar sesión |
+| P-03 | Recuperar contraseña |
+| P-04 | Restablecer contraseña |
+| P-05 | Inicio HOME *(tras login, cualquier rol)* |
 
 ---
 
-## 1. Acceso público y autenticación
+## Catálogo — Administrador (A)
+
+| Nº | Pantalla | Menú lateral |
+|----|----------|:------------:|
+| A-01 | Inicio HOME | ✓ Inicio |
+| A-02 | Reporte de cuotas por sucursal | ✓ Cuotas y Cobros |
+| A-03 | Planes, cuotas y promociones | ✓ Planes y Promociones |
+| A-04 | Ventas SquatShop por sucursal | ✓ Ventas |
+| A-05 | Stock y pedidos por sucursal | ✓ Stock y Pedidos |
+| A-06 | Auditoría del sistema | ✓ Auditoría |
+| A-M1 | Recibo digital *(modal)* | — |
+| A-M2 | Detalle de venta *(modal)* | — |
+| A-M3 | Gestión stock: reposición, pedidos, faltantes, ajuste *(modales)* | — |
+| A-M4 | Alta/edición plan o producto kiosco *(modal)* | — |
+
+**Alertas 🔔 desde A-01:** Stock crítico → A-05 · Faltantes mostrador → A-05 · Reposición en curso → A-05
+
+---
+
+## Catálogo — Encargado (E)
+
+| Nº | Pantalla | Menú lateral |
+|----|----------|:------------:|
+| E-01 | Inicio HOME | ✓ Inicio |
+| E-02 | Reporte de cuotas por sucursal | ✓ Cuotas y Cobros |
+| E-03 | Ventas SquatShop por sucursal | ✓ Ventas |
+| E-04 | Stock y pedidos por sucursal | ✓ Stock y Pedidos |
+| E-M1 | Recibo digital *(modal)* | — |
+| E-M2 | Detalle de venta *(modal)* | — |
+| E-M3 | Gestión stock: reposición, pedidos, ver faltantes *(modales)* | — |
+
+**Alertas 🔔 desde E-01:** Socios sin cobro → E-02 · Stock irregular → E-04 · Pedidos reposición → E-04 · Faltantes informados → E-04
+
+---
+
+## Catálogo — Secretaria (S)
+
+| Nº | Pantalla | Menú lateral |
+|----|----------|:------------:|
+| S-01 | Inicio HOME | ✓ Inicio |
+| S-02 | Registro de pagos de cuota | ✓ Registro de Pagos |
+| S-03 | SquatShop — ventas y caja | ✓ Ventas |
+| S-04 | Consulta de stock | ✓ Consulta de Stock |
+| S-M1 | Registrar pago *(modal)* | — |
+| S-M2 | Recibo digital *(modal)* | — |
+| S-M3 | Caja: abrir, cerrar, comprobantes, confirmar venta *(modales)* | — |
+| S-M4 | Stock: reportar faltante *(modal)* | — |
+
+**Alertas 🔔 desde S-01:** Socios sin cobro → S-02 · Pagos por conciliar → S-02 · Stock bajo/agotado → S-04 · Faltantes mostrador → S-04
+
+**En S-04:** exportar planilla PDF (misma pantalla, sin nueva numeración).
+
+---
+
+## Catálogo — Alumno (L)
+
+| Nº | Pantalla | Menú lateral |
+|----|----------|:------------:|
+| L-01 | Inicio HOME | ✓ Inicio |
+| L-02 | Resumen de cuenta y pagos | ✓ Estado de Cuenta |
+| L-M1 | Pago online *(modal)* | — |
+| L-M2 | Recibo digital *(modal)* | — |
+
+**Alertas 🔔 desde L-01:** Cuota vencida → L-02 (sección pagar) · Pago en verificación → L-02 (historial) · Saldo pendiente → L-02
+
+*(Las entradas “Pagar cuota” y “Recibos” del menú antiguo redirigen al resumen L-02.)*
+
+---
+
+## 1. Acceso público (P-01 a P-05)
 
 ```mermaid
-flowchart TB
-  subgraph publico["Sin sesión"]
-    L["/ Landing"]
-    LG["/login"]
-    FP["/recuperar-contrasena"]
-    RT["/recuperar-contrasena/:token"]
-  end
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 40, 'rankSpacing': 55}}}%%
+flowchart TD
+  P01["P-01 · Landing"]
+  P02["P-02 · Iniciar sesión"]
+  P03["P-03 · Recuperar contraseña"]
+  P04["P-04 · Restablecer contraseña"]
+  P05["P-05 · Inicio HOME"]
 
-  L -->|Ingresá al portal| LG
-  L --> LG
-  LG -->|Volver al inicio| L
-  LG -->|Recuperar contraseña| FP
-  FP --> RT
-  RT -->|Contraseña actualizada| LG
-  FP -->|Cancelar| LG
-
-  LG -->|Login OK| D["/dashboard"]
-  L -.->|Si ya hay sesión| D
-  LG -.->|Si ya hay sesión| D
+  P01 --> P02
+  P02 --> P05
+  P02 --> P03
+  P03 --> P04
+  P04 --> P02
+  P01 -.-> P05
+  P02 -.-> P05
 ```
 
 ---
 
-## 2. Administrador
+## 2. Administrador (A-01 a A-06)
 
 ```mermaid
-flowchart TB
-  D["/dashboard<br/>HOME Admin"]
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 35, 'rankSpacing': 50}}}%%
+flowchart TD
+  A01["A-01 · Inicio HOME"]
 
-  D -->|Menú| R["/pagos/reporte<br/>Reporte cuotas"]
-  D -->|Menú| P["/pagos/promociones<br/>Planes y promos"]
-  D -->|Menú| V["/kiosco/ventas<br/>Ventas SquatShop"]
-  D -->|Menú| S["/kiosco/stock<br/>Stock"]
-  D -->|Menú| A["/auditoria<br/>Auditoría"]
+  A01 --> A02["A-02 · Reporte de cuotas"]
+  A01 --> A03["A-03 · Planes y promociones"]
+  A01 --> A04["A-04 · Ventas SquatShop"]
+  A01 --> A05["A-05 · Stock y pedidos"]
+  A01 --> A06["A-06 · Auditoría"]
 
-  D -->|Atajos dashboard| R
-  D -->|Atajos dashboard| V
-  D -->|Atajos dashboard| S
-  D -->|Atajos dashboard| P
+  A02 --> AM1["A-M1 · Recibo digital"]
+  A04 --> AM2["A-M2 · Detalle de venta"]
+  A05 --> AM3["A-M3 · Modales de stock"]
+  A03 --> AM4["A-M4 · Plan o producto"]
+```
 
-  D -.->|🔔 Stock crítico| S
-  D -.->|🔔 Faltantes mostrador| S
-  D -.->|🔔 Reposición en curso| S
+*Atajos en A-01 y alertas 🔔 apuntan a las mismas pantallas A-02 … A-06 (ver catálogo).*
 
-  R -->|Modal ver recibo| MR(("Modal Recibo"))
-  S -->|Menú ⋮| MS(("Modales Stock"))
-  MS --> M1["Reposición"]
-  MS --> M2["Pedidos en curso"]
-  MS --> M3["Faltantes / incidencias"]
-  M3 --> M4["Ajuste físico aprobación"]
-  P --> MP(("Modal plan / producto"))
+---
 
-  V -->|Menú ⋮ fila| MV(("Modal detalle venta"))
+## 3. Encargado (E-01 a E-04)
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 35, 'rankSpacing': 50}}}%%
+flowchart TD
+  E01["E-01 · Inicio HOME"]
+
+  E01 --> E02["E-02 · Reporte de cuotas"]
+  E01 --> E03["E-03 · Ventas SquatShop"]
+  E01 --> E04["E-04 · Stock y pedidos"]
+
+  E02 --> EM1["E-M1 · Recibo digital"]
+  E03 --> EM2["E-M2 · Detalle de venta"]
+  E04 --> EM3["E-M3 · Modales de stock"]
 ```
 
 ---
 
-## 3. Encargado de sucursal
+## 4. Secretaria (S-01 a S-04)
 
 ```mermaid
-flowchart TB
-  D["/dashboard<br/>HOME Encargado"]
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 35, 'rankSpacing': 50}}}%%
+flowchart TD
+  S01["S-01 · Inicio HOME"]
 
-  D -->|Menú| R["/pagos/reporte<br/>Reporte cuotas"]
-  D -->|Menú| V["/kiosco/ventas<br/>Ventas"]
-  D -->|Menú| S["/kiosco/stock<br/>Stock"]
+  S01 --> S02["S-02 · Registro de pagos"]
+  S01 --> S03["S-03 · SquatShop y caja"]
+  S01 --> S04["S-04 · Consulta de stock"]
 
-  D -->|Atajos dashboard| R
-  D -->|Atajos dashboard| V
-  D -->|Atajos dashboard| S
-  D -->|Link stock irregular| S
-
-  D -.->|🔔 Socios sin cobro| R
-  D -.->|🔔 Stock irregular| S
-  D -.->|🔔 Pedidos reposición| S
-  D -.->|🔔 Faltantes informados| S
-
-  R -->|Modal recibo| MR(("Modal Recibo"))
-  S -->|Menú ⋮| MS(("Modales Stock"))
-  MS --> M1["Solicitar reposición"]
-  MS --> M2["Ver pedidos en curso"]
-  MS --> M3["Ver faltantes mostrador"]
-  V --> MV(("Modal detalle venta"))
+  S02 --> SM1["S-M1 · Registrar pago"]
+  S02 --> SM2["S-M2 · Recibo digital"]
+  S03 --> SM3["S-M3 · Modales de caja y venta"]
+  S04 --> SM4["S-M4 · Reportar faltante"]
 ```
 
 ---
 
-## 4. Secretaria
+## 5. Alumno (L-01 a L-02)
 
 ```mermaid
-flowchart TB
-  D["/dashboard<br/>HOME Secretaria"]
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 40, 'rankSpacing': 55}}}%%
+flowchart TD
+  L01["L-01 · Inicio HOME"]
+  L02["L-02 · Resumen de cuenta"]
 
-  D -->|Menú| G["/pagos/registrar<br/>Pagos de cuota"]
-  D -->|Menú| K["/kiosco/venta<br/>SquatShop + caja"]
-  D -->|Menú| S["/kiosco/stock<br/>Consulta stock"]
+  L01 --> L02
+  L02 --> LM1["L-M1 · Pago online"]
+  L02 --> LM2["L-M2 · Recibo digital"]
+  LM1 --> LM2
+```
 
-  D -->|Atajos dashboard| G
-  D -->|Atajos dashboard| K
-  D -->|Atajos dashboard| S
+*Alertas 🔔 desde L-01 llevan a L-02 (pestaña o sección según el tipo de aviso).*
 
-  D -.->|🔔 Socios sin cobro| G
-  D -.->|🔔 Pagos por conciliar| G
-  D -.->|🔔 Stock bajo/agotado| S
-  D -.->|🔔 Faltantes mostrador| S
+---
 
-  G -->|Tras registrar / Ver recibo| MR(("Modal Recibo"))
-  G -->|Registrar pago| MREG(("Modal Registrar pago"))
+## 6. Reglas de acceso (todas las pantallas internas)
 
-  K --> MK(("Modales caja / venta"))
-  MK --> MA["Abrir caja"]
-  MK --> MC["Cerrar caja"]
-  MK --> MCO["Comprobante apertura/cierre"]
-  MK --> MCF["Confirmar venta"]
-  MK --> MCR["Comprobante venta"]
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 30, 'rankSpacing': 45}}}%%
+flowchart TD
+  IN["Solicitud de pantalla"]
+  SES{"¿Hay sesión?"}
+  ROL{"¿Rol autorizado?"}
+  OK["Muestra la pantalla"]
+  P01b["P-01 · Landing"]
+  A01b["P-05 / A-01 / E-01 / S-01 / L-01 · Inicio HOME"]
 
-  S -->|Menú ⋮| MS(("Modales Stock"))
-  MS --> MF["Reportar faltante"]
-  S -->|PDF planilla| S
+  IN --> SES
+  SES -->|No| P01b
+  SES -->|Sí| ROL
+  ROL -->|No| A01b
+  ROL -->|Sí| OK
 ```
 
 ---
 
-## 5. Alumno / socio
+## Detalle de modales (referencia)
 
-```mermaid
-flowchart TB
-  D["/dashboard<br/>HOME Alumno"]
-
-  D -->|Menú / CTA| E["/mi-cuenta/estado-cuenta<br/>Resumen de cuenta"]
-
-  D -.->|🔔 Cuota vencida| PAY["/mi-cuenta/pagar"]
-  D -.->|🔔 Pago en verificación| HIST["/mi-cuenta/pagos"]
-  D -.->|🔔 Saldo pendiente| E
-
-  PAY -.->|Redirect| E2["estado-cuenta#pagar"]
-  HIST -.->|Redirect| E3["estado-cuenta#historial"]
-
-  E -->|Pagar período| MPO(("Modal Pago online"))
-  E -->|Ver recibo| MR(("Modal Recibo"))
-  MPO -->|OK| MR
-```
+| Host | Modales |
+|------|---------|
+| A-05 / E-04 / S-04 · Stock | Pedidos en curso · Solicitar reposición · Reportar faltante · Incidencias · Ajuste físico *(solo admin)* |
+| S-03 · SquatShop y caja | Abrir caja · Cerrar caja · Comprobante caja · Confirmar venta · Comprobante venta |
+| A-04 / E-03 · Ventas | Detalle de venta |
+| S-02 · Registro de pagos | Registrar pago · Recibo digital |
+| L-02 · Resumen de cuenta | Pago online · Recibo digital |
+| A-03 · Promociones | Plan · Producto kiosco |
 
 ---
 
-## 6. Reglas globales del router
+## Cómo ver y exportar
 
-```mermaid
-flowchart LR
-  REQ["Ruta protegida"] --> AUTH{¿Sesión?}
-  AUTH -->|No| L["/"]
-  AUTH -->|Sí| ROLE{¿Rol permitido?}
-  ROLE -->|No| D["/dashboard"]
-  ROLE -->|Sí| OK["Pantalla solicitada"]
-  REQ -->|Ruta desconocida| D
-```
+- **Preview:** VS Code/Cursor con soporte Mermaid, o GitHub/GitLab.
+- **PNG/PDF:** [mermaid.live](https://mermaid.live) — pegar un bloque `mermaid` a la vez.
+- Si aún se ven curvas: en mermaid.live, *Configuration* → *Flowchart* → **Curve** = `linear` o `step`.
 
 ---
 
-## 7. Modales sin cambio de URL (resumen)
-
-| Pantalla host | Modales |
-|---------------|---------|
-| `/kiosco/stock` | Pedidos en curso; solicitar reposición; reportar faltante; listado incidencias; ajuste físico (admin) |
-| `/kiosco/venta` | Abrir caja; cerrar caja; comprobante caja; confirmar venta; comprobante venta |
-| `/kiosco/ventas` | Detalle de venta |
-| `/pagos/registrar` | Registrar pago; recibo digital |
-| `/mi-cuenta/estado-cuenta` | Pago online; recibo digital |
-| `/pagos/promociones` | Alta/edición plan; alta producto kiosco |
-| `/pagos/recibo/:id` | Recibo a pantalla completa (mismo componente que el modal; `navigate(-1)` al cerrar) |
-
----
-
-## Cómo ver los diagramas
-
-- En **GitHub/GitLab**: este `.md` renderiza Mermaid en el visor del repo.
-- En **VS Code/Cursor**: extensión “Markdown Preview Mermaid Support”.
-- Exportar a PNG/PDF: [mermaid.live](https://mermaid.live) (pegar cada bloque `mermaid`).
-
----
-
-*Generado para Diseño de Sistemas — TPI SquatGym 2026. Actualizar si cambian `routes.jsx` o `menuConfig.js`.*
+*Diseño de Sistemas — TPI SquatGym 2026. Numeración y nombres alineados a `routes.jsx` y `menuConfig.js`.*
