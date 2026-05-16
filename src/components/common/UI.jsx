@@ -1,14 +1,17 @@
 /* eslint-disable react/prop-types */
 export function Card({ title, subtitle, actions, children }) {
+  const hasHeader = title || subtitle || actions
   return (
     <section className="sg-card">
-      <header className="sg-card-header">
-        <div>
-          <h3>{title}</h3>
-          {subtitle ? <p>{subtitle}</p> : null}
-        </div>
-        {actions}
-      </header>
+      {hasHeader ? (
+        <header className="sg-card-header">
+          <div>
+            {title ? <h3>{title}</h3> : null}
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
+          {actions}
+        </header>
+      ) : null}
       {children}
     </section>
   )
@@ -75,7 +78,7 @@ export function Table({ columns, rows, striped = false }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key}>
+            <tr key={row.key} className={row.className}>
               {row.cells.map((cell, idx) => (
                 <td key={idx}>{cell}</td>
               ))}

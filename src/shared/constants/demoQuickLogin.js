@@ -18,6 +18,6 @@ export const DEMO_QUICK_LOGIN_EMAILS_ORDERED = [
   'encargado.norte@squatgym.com',
   'secretaria.centro@squatgym.com',
   'secretaria.norte@squatgym.com',
-  'lucia.fernandez@squatgym.com',
-  'martin.quinteros@squatgym.com',
+  'martin.rios.001@squatgym.com',
+  'camila.benitez.002@squatgym.com',
 ]

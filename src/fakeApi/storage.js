@@ -1,7 +1,7 @@
 import { initialSeed } from './seed'
 
-const STORAGE_KEY = 'squatgym_tpi_state_v9'
-const LEGACY_KEYS = ['squatgym_tpi_state_v8', 'squatgym_tpi_state_v7', 'squatgym_tpi_state_v6', 'squatgym_tpi_state_v5', 'squatgym_tpi_state_v4']
+const STORAGE_KEY = 'squatgym_tpi_state_v15'
+const LEGACY_KEYS = ['squatgym_tpi_state_v14', 'squatgym_tpi_state_v13', 'squatgym_tpi_state_v12', 'squatgym_tpi_state_v11', 'squatgym_tpi_state_v10', 'squatgym_tpi_state_v9', 'squatgym_tpi_state_v8', 'squatgym_tpi_state_v7', 'squatgym_tpi_state_v6', 'squatgym_tpi_state_v5', 'squatgym_tpi_state_v4']
 
 const clone = (v) => JSON.parse(JSON.stringify(v))
 

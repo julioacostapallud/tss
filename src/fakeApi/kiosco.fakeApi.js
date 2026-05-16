@@ -1,3 +1,4 @@
+import { calcularArqueoCaja, calcularResumenVentasCaja } from '../modules/kiosco/utils/cajaCalculations'
 import { storage, withLatency } from './storage'
 
 export const kioscoFakeApi = {
@@ -198,10 +199,94 @@ export const kioscoFakeApi = {
     }))
     return withLatency({ cerrados })
   },
+  getCajaActiva(sedeId) {
+    const caja = (storage.get().cajasKiosco || []).find((c) => c.sedeId === sedeId && c.estado === 'abierta')
+    return withLatency(caja || null)
+  },
+  listCajas() {
+    return withLatency(storage.get().cajasKiosco || [])
+  },
+  abrirCaja({ sedeId, usuarioId, montoInicial }) {
+    let created = null
+    storage.update((state) => {
+      const activa = (state.cajasKiosco || []).find((c) => c.sedeId === sedeId && c.estado === 'abierta')
+      if (activa) return state
+      const n = (state.cajasKiosco || []).length + 1
+      const caja = {
+        id: `caja-${crypto.randomUUID().slice(0, 12)}`,
+        sedeId,
+        estado: 'abierta',
+        usuarioId,
+        aperturaFechaHora: new Date().toISOString(),
+        cierreFechaHora: null,
+        montoInicial: Number(montoInicial) || 0,
+        montoDejadoProxima: null,
+        montoRetirado: null,
+        comprobanteAperturaNumero: `CAJ-AP-${String(n).padStart(5, '0')}`,
+        comprobanteCierreNumero: null,
+        resumenSistema: null,
+        arqueo: null,
+        resumenArqueo: null,
+        observaciones: '',
+      }
+      created = caja
+      return { ...state, cajasKiosco: [caja, ...(state.cajasKiosco || [])] }
+    })
+    return withLatency(created)
+  },
+  cerrarCaja({
+    cajaId,
+    arqueo,
+    montoDejadoProxima,
+    montoRetirado,
+    ajusteManualEfectivo,
+    observacionAjusteEfectivo,
+    observaciones,
+  }) {
+    let closed = null
+    storage.update((state) => {
+      const caja = (state.cajasKiosco || []).find((c) => c.id === cajaId)
+      if (!caja || caja.estado !== 'abierta') return state
+      const ventas = state.ventasKiosco.filter((v) => v.cajaId === cajaId)
+      const resumenSistema = calcularResumenVentasCaja(ventas, caja.montoInicial)
+      const resumenArqueo = calcularArqueoCaja({
+        resumenSistema,
+        arqueo,
+        montoRetirado,
+      })
+      const n = (state.cajasKiosco || []).filter((c) => c.comprobanteCierreNumero).length + 1
+      const updated = {
+        ...caja,
+        estado: 'cerrada',
+        cierreFechaHora: new Date().toISOString(),
+        arqueo,
+        resumenSistema,
+        resumenArqueo,
+        montoDejadoProxima: resumenArqueo.fondoDeCaja,
+        montoRetirado: resumenArqueo.efectivoRetirado,
+        ajusteManualEfectivo: resumenArqueo.ajustePorDiferenciasEfectivo ?? 0,
+        ajustePorDiferenciasEfectivo: resumenArqueo.ajustePorDiferenciasEfectivo ?? 0,
+        observacionAjusteEfectivo: observacionAjusteEfectivo || '',
+        efectivoRealProximaApertura: resumenArqueo.fondoDeCaja,
+        observaciones: observaciones || '',
+        comprobanteCierreNumero: `CAJ-CI-${String(n).padStart(5, '0')}`,
+      }
+      closed = updated
+      return {
+        ...state,
+        cajasKiosco: state.cajasKiosco.map((c) => (c.id === cajaId ? updated : c)),
+      }
+    })
+    return withLatency(closed)
+  },
   registrarVenta(venta) {
-    const ventaConId = { ...venta, id: crypto.randomUUID() }
-    const next = storage.update((state) => {
-      const stock = [...state.stock]
+    const state = storage.get()
+    const cajaActiva = (state.cajasKiosco || []).find((c) => c.sedeId === venta.sedeId && c.estado === 'abierta')
+    if (!cajaActiva) return withLatency(null)
+
+    const ventaConId = { ...venta, id: crypto.randomUUID(), cajaId: cajaActiva.id }
+    const next = storage.update((st) => {
+      const stock = [...st.stock]
       venta.items.forEach((item) => {
         const row = stock.find((s) => s.productoId === item.productoId && s.sedeId === venta.sedeId)
         if (!row) return
@@ -209,9 +294,9 @@ export const kioscoFakeApi = {
         row.stockActual = nextQty
       })
       return {
-        ...state,
+        ...st,
         stock,
-        ventasKiosco: [{ ...ventaConId }, ...state.ventasKiosco],
+        ventasKiosco: [{ ...ventaConId }, ...st.ventasKiosco],
       }
     })
     const created = next.ventasKiosco[0]

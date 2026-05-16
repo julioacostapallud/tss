@@ -5,8 +5,8 @@ import { Badge, Button, Table } from '../../../components/common/UI'
 import { useAppState } from '../../../app/AppState'
 import { calculateProratedAmount, periodosRolling } from '../utils/pagosCalculations'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
-import { buildComprobanteHtml, abrirComprobanteNuevaVentana, descargarComprobanteArchivo } from '../utils/comprobanteHtml'
 import { PagoOnlineAlumnoModal } from '../components/PagoOnlineAlumnoModal'
+import { ReciboDigitalModal } from '../components/ReciboDigitalModal'
 
 function KpiCard({ icon: Icon, label, value, hint }) {
   return (
@@ -23,6 +23,8 @@ function KpiCard({ icon: Icon, label, value, hint }) {
 export default function EstadoCuentaAlumnoPage() {
   const { state, currentUser, reload } = useAppState()
   const [pagoModal, setPagoModal] = useState(null)
+  const [reciboModalId, setReciboModalId] = useState(null)
+  const [reciboPagoFallback, setReciboPagoFallback] = useState(null)
 
   const alumno = state.alumnos.find((a) => a.id === currentUser?.alumnoId)
   const sede = state.sedes.find((s) => s.id === alumno?.sedePrincipalId)
@@ -56,16 +58,13 @@ export default function EstadoCuentaAlumnoPage() {
     ? new Date(`${alumno.fechaAlta}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
     : '—'
 
-  function handleDescargarComprobante(pagoRow) {
-    if (!pagoRow?.recibo || !alumno) return
-    const html = buildComprobanteHtml({
-      pago: pagoRow.recibo,
-      alumno,
-      sedeNombre: sede?.nombre,
-      planNombre: plan?.nombre,
-    })
-    abrirComprobanteNuevaVentana(html)
-    descargarComprobanteArchivo(html, `comprobante-${pagoRow.recibo.reciboNumero}.html`)
+  function handlePagoOnlineExito(pagoCreado) {
+    setPagoModal(null)
+    reload()
+    if (pagoCreado?.id) {
+      setReciboPagoFallback(pagoCreado)
+      window.setTimeout(() => setReciboModalId(pagoCreado.id), 0)
+    }
   }
 
   if (!alumno) {
@@ -106,8 +105,8 @@ export default function EstadoCuentaAlumnoPage() {
               row.pactado <= 0 ? '—' : formatCurrency(row.pactado),
               <Badge key={`st-${row.per}`} tone={row.pagado ? 'ok' : row.espera ? 'neutral' : 'warn'}>{row.estadoLabel}</Badge>,
               row.pagado && row.recibo ? (
-                <Button key={`dl-${row.per}`} type="button" kind="secondary" onClick={() => handleDescargarComprobante(row)}>
-                  Descargar comprobante
+                <Button key={`dl-${row.per}`} type="button" kind="secondary" onClick={() => setReciboModalId(row.recibo.id)}>
+                  Ver comprobante
                 </Button>
               ) : row.puedePagarOnline ? (
                 <Button key={`pay-${row.per}`} type="button" onClick={() => setPagoModal({ periodo: row.per, monto: row.pactado })}>
@@ -131,9 +130,18 @@ export default function EstadoCuentaAlumnoPage() {
           periodo={pagoModal.periodo}
           monto={pagoModal.monto}
           currentUser={currentUser}
-          onExito={() => reload()}
+          onExito={handlePagoOnlineExito}
         />
       ) : null}
+      <ReciboDigitalModal
+        open={Boolean(reciboModalId)}
+        pagoId={reciboModalId}
+        pagoFallback={reciboPagoFallback}
+        onClose={() => {
+          setReciboModalId(null)
+          setReciboPagoFallback(null)
+        }}
+      />
     </section>
   )
 }

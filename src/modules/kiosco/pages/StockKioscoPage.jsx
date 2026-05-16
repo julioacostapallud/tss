@@ -7,8 +7,58 @@ import { ROLES } from '../../../shared/constants/roles'
 import { getStockStatus } from '../utils/stockCalculations'
 import { kioscoService } from '../services/kiosco.service'
 import { fakeApi } from '../../../fakeApi'
+import ReportPrintTools from '../../shared/components/ReportPrintTools'
 
-const ESTADO_RANK = { agotado: 0, bajo: 1, normal: 2 }
+const ETIQUETA_ORDEN_STOCK = {
+  producto_asc: 'Producto (A - Z)',
+  producto_desc: 'Producto (Z - A)',
+  stock_asc: 'Stock (menor a mayor)',
+  stock_desc: 'Stock (mayor a menor)',
+}
+
+function StockChecklistPrintTable({ lineas }) {
+  if (!lineas.length) {
+    return <p className="sg-muted-mini sg-print-only" role="status">Sin registros para los filtros actuales.</p>
+  }
+  return (
+    <div className="sg-print-only sg-stock-print-sheet">
+      <div className="sg-reporte-table-shell">
+        <div className="sg-table-wrap sg-reporte-table-wrap">
+          <table className="sg-reporte-table sg-stock-checklist-table">
+            <thead>
+              <tr>
+                <th scope="col">Producto</th>
+                <th scope="col">Categoría</th>
+                <th scope="col" className="sg-reporte-col-num">Stock</th>
+                <th scope="col" className="sg-reporte-col-num">Mín.</th>
+                <th scope="col">Estado</th>
+                <th scope="col" className="sg-stock-check-col">Faltante</th>
+                <th scope="col" className="sg-stock-obs-col">Observaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineas.map((line) => (
+                <tr key={line.id}>
+                  <td>{line.nombreProducto}</td>
+                  <td>{line.categoria}</td>
+                  <td className="sg-reporte-col-num">{line.stockActual}</td>
+                  <td className="sg-reporte-col-num">{line.stockMinimo}</td>
+                  <td>{line.estado}</td>
+                  <td className="sg-stock-check-col" aria-hidden>☐</td>
+                  <td className="sg-stock-obs-col" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="sg-stock-print-foot">
+        Planilla para control en mostrador. Marcá con lápiz los faltantes y cargalos en SquatGym desde{' '}
+        <strong>⋮ → Reportar faltante (mostrador)</strong> en cada producto.
+      </p>
+    </div>
+  )
+}
 
 function Modal({ title, children, onClose }) {
   return (
@@ -22,6 +72,18 @@ function Modal({ title, children, onClose }) {
 
 function norm(v) {
   return String(v ?? '').toLowerCase().trim()
+}
+
+function sumarVariacionDeclarada(incidencias) {
+  return incidencias.reduce((acc, it) => acc + (Number(it.variacionDeclarada) || 0), 0)
+}
+
+function etiquetaVariacionDeclarada(valor) {
+  const n = Number(valor)
+  if (!Number.isFinite(n) || n === 0) return null
+  if (n > 0) return `Sobran ${n} unidad${n === 1 ? '' : 'es'} (+${n})`
+  const abs = Math.abs(n)
+  return `Faltan ${abs} unidad${abs === 1 ? '' : 'es'} (${n})`
 }
 
 function badgeTonePedidoActivo(estado) {
@@ -136,8 +198,8 @@ export default function StockKioscoPage() {
   const { state, currentUser, reload } = useAppState()
   const r = currentUser.role
   const puedeAjustar = r === ROLES.ADMINISTRADOR
-  const puedeReposicion = r === ROLES.ADMINISTRADOR || r === ROLES.ENCARGADO
-  const puedePedidoEstado = r === ROLES.ADMINISTRADOR || r === ROLES.ENCARGADO
+  const puedeReposicion = r === ROLES.ENCARGADO
+  const puedePedidoEstado = r === ROLES.ADMINISTRADOR
   const puedeReportarSecretaria = r === ROLES.SECRETARIA
   const puedeVerIncidencias = r === ROLES.ADMINISTRADOR || r === ROLES.ENCARGADO
 
@@ -212,13 +274,6 @@ export default function StockKioscoPage() {
           return a.stockActual - b.stockActual || a.nombreProducto.localeCompare(b.nombreProducto)
         case 'stock_desc':
           return b.stockActual - a.stockActual || a.nombreProducto.localeCompare(b.nombreProducto)
-        case 'sede_asc':
-          return sedeNombre(a.sedeId).localeCompare(sedeNombre(b.sedeId)) || a.nombreProducto.localeCompare(b.nombreProducto)
-        case 'alerta_primero': {
-          const ra = ESTADO_RANK[a.estado] ?? 9
-          const rb = ESTADO_RANK[b.estado] ?? 9
-          return ra !== rb ? ra - rb : sedeNombre(a.sedeId).localeCompare(sedeNombre(b.sedeId)) || a.nombreProducto.localeCompare(b.nombreProducto)
-        }
         case 'producto_asc':
         default:
           return a.nombreProducto.localeCompare(b.nombreProducto) || sedeNombre(a.sedeId).localeCompare(sedeNombre(b.sedeId))
@@ -320,6 +375,11 @@ export default function StockKioscoPage() {
   async function enviarFaltanteMostrador(ev) {
     ev.preventDefault()
     const fd = new FormData(ev.target)
+    const variacionDeclarada = Number(fd.get('variacion'))
+    if (!Number.isFinite(variacionDeclarada) || variacionDeclarada === 0 || !Number.isInteger(variacionDeclarada)) {
+      window.alert('Indicá cuántas unidades faltan (número negativo) o sobran (número positivo). No puede ser cero.')
+      return
+    }
     await kioscoService.reportarFaltanteMostrador({
       tipo: 'faltante_mostrador',
       sedeId: modal.sedeId,
@@ -327,6 +387,7 @@ export default function StockKioscoPage() {
       nombreProducto: modal.nombreProducto,
       reportadoPorUsuarioId: currentUser.id,
       reportadoPorNombre: currentUser.nombreCompleto ?? currentUser.email,
+      variacionDeclarada,
       observacion: String(fd.get('observacion') ?? '').trim() || undefined,
     })
     await fakeApi.auditoria.registrar({
@@ -334,7 +395,7 @@ export default function StockKioscoPage() {
       rol: r,
       accion: 'reporte_faltante_mostrador',
       modulo: 'kiosco',
-      detalle: `${modal.nombreProducto} · ${modal.sedeNombre}`,
+      detalle: `${modal.nombreProducto} · ${modal.sedeNombre} · Δ${variacionDeclarada >= 0 ? '+' : ''}${variacionDeclarada}`,
     })
     setModal(null)
     reload()
@@ -352,7 +413,7 @@ export default function StockKioscoPage() {
     reload()
   }
 
-  const columnasStock = [...(mostrarColSede ? ['Sucursal'] : []), 'Producto', 'Categoría', 'Ubicación', 'Stock', 'Mínimo', 'Estado', 'Acciones']
+  const columnasStock = [...(mostrarColSede ? ['Sucursal'] : []), 'Producto', 'Categoría', 'Stock', 'Mínimo', 'Estado', 'Acciones']
 
   const rowsStock = lineasOrdenadas.map((line) => {
     const nombreSedeLinea = sedeNombre(line.sedeId)
@@ -370,7 +431,6 @@ export default function StockKioscoPage() {
     cells.push(
       line.nombreProducto,
       line.categoria,
-      line.ubicacion,
       line.stockActual,
       line.stockMinimo,
       <Badge key={`e-${line.id}`} tone={line.estado === 'normal' ? 'ok' : line.estado === 'bajo' ? 'warn' : 'neutral'}>{line.estado}</Badge>,
@@ -395,7 +455,7 @@ export default function StockKioscoPage() {
                   title={hayPedidoRepoAbierto ? 'Ya hay un pedido en curso (pendiente o aprobado). Gestioná o cerrá ese pedido antes de solicitar otro.' : 'Generar un nuevo pedido a logística'}
                   onClick={() => { close(); setModal({ type: 'repo', sedeId: line.sedeId, sedeNombre: nombreSedeLinea, productoId: line.productoId, nombreProducto: line.nombreProducto }) }}
                 >
-                  Solicitar nueva reposición
+                  Solicitar reposición
                 </Button>
               ) : null}
               {puedePedidoEstado ? (
@@ -454,52 +514,76 @@ export default function StockKioscoPage() {
     return { key: line.id, cells }
   })
 
+  const esSecretaria = r === ROLES.SECRETARIA
+  const nombreSedeMi = state.sedes.find((z) => z.id === currentUser.sedeId)?.nombre ?? 'Mi sede'
+
+  const filtrosStockTexto = useMemo(() => {
+    const partes = [`Sucursal: ${nombreSedeMi}`, `${lineasOrdenadas.length} producto(s)`]
+    if (estadoFil !== 'todos') partes.push(`Estado: ${estadoFil}`)
+    if (categoriaFil) partes.push(`Categoría: ${categoriaFil}`)
+    if (busqueda.trim()) partes.push(`Búsqueda: "${busqueda.trim()}"`)
+    partes.push(`Orden: ${ETIQUETA_ORDEN_STOCK[ordenStock] ?? ordenStock}`)
+    return partes.join(' · ')
+  }, [nombreSedeMi, lineasOrdenadas.length, estadoFil, categoriaFil, busqueda, ordenStock])
+
   const subtituloCard =
     r === ROLES.ADMINISTRADOR
       ? 'Control de stock, reposición e incidencias por producto.'
       : r === ROLES.ENCARGADO
         ? 'Gestión de reposición e incidencias de tu sede.'
-        : 'Consultá stock e informá faltantes desde mostrador.';
+        : 'Consultá stock e informá faltantes desde mostrador. Descargá la planilla en PDF para el relevamiento en mostrador.';
 
   return (
-    <section className="sg-grid">
-      <Card title="Stock por sucursal" subtitle={subtituloCard}>
-        <div className="sg-filters sg-filters-tight">
-          {r === ROLES.ADMINISTRADOR ? (
-            <Select label="Sucursal" value={sedeFil} onChange={(e) => setSedeFil(e.target.value)}>
-              <option value="">Todas las sucursales</option>
-              {sedesLista.map((opt) => <option key={opt.id} value={opt.id}>{opt.nombre}</option>)}
+    <section className={esSecretaria ? 'sg-grid sg-report-page sg-stock-secretaria-report' : 'sg-grid'}>
+      {esSecretaria ? (
+        <ReportPrintTools
+          reportTitle="Planilla de control de stock — mostrador"
+          filtersText={filtrosStockTexto}
+          currentUser={currentUser}
+        />
+      ) : null}
+      <Card subtitle={subtituloCard}>
+        <div className={esSecretaria ? 'sg-no-print' : undefined}>
+        <div className="sg-stock-controls">
+          <div className="sg-filters sg-filters-tight sg-stock-filter-group">
+            {r === ROLES.ADMINISTRADOR ? (
+              <Select label="Sucursal" value={sedeFil} onChange={(e) => setSedeFil(e.target.value)}>
+                <option value="">Todas las sucursales</option>
+                {sedesLista.map((opt) => <option key={opt.id} value={opt.id}>{opt.nombre}</option>)}
+              </Select>
+            ) : (
+              <Select label="Sucursal (asignada)" value={currentUser.sedeId} disabled onChange={() => {}}>
+                <option value={currentUser.sedeId}>{state.sedes.find((z) => z.id === currentUser.sedeId)?.nombre}</option>
+              </Select>
+            )}
+            <Select label="Estado de stock" value={estadoFil} onChange={(e) => setEstadoFil(e.target.value)}>
+              <option value="todos">Todos</option>
+              <option value="normal">Normal</option>
+              <option value="bajo">Bajo</option>
+              <option value="agotado">Agotado</option>
             </Select>
-          ) : (
-            <Select label="Sucursal (asignada)" value={currentUser.sedeId} disabled onChange={() => {}}>
-              <option value={currentUser.sedeId}>{state.sedes.find((z) => z.id === currentUser.sedeId)?.nombre}</option>
+            <Select label="Categoría" value={categoriaFil} onChange={(e) => setCategoriaFil(e.target.value)}>
+              <option value="">Todas</option>
+              {categoriasUnicas.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
-          )}
-          <Select label="Estado de stock" value={estadoFil} onChange={(e) => setEstadoFil(e.target.value)}>
-            <option value="todos">Todos</option>
-            <option value="normal">Normal</option>
-            <option value="bajo">Bajo</option>
-            <option value="agotado">Agotado</option>
-          </Select>
-          <Select label="Categoría" value={categoriaFil} onChange={(e) => setCategoriaFil(e.target.value)}>
-            <option value="">Todas</option>
-            {categoriasUnicas.map((c) => <option key={c} value={c}>{c}</option>)}
-          </Select>
-          <Select label="Ordenar por" value={ordenStock} onChange={(e) => setOrdenStock(e.target.value)}>
-            <option value="producto_asc">Nombre (A → Z)</option>
-            <option value="producto_desc">Nombre (Z → A)</option>
-            {mostrarColSede ? <option value="sede_asc">Sucursal, luego producto</option> : null}
-            <option value="alerta_primero">Estado sensible primero</option>
-            <option value="stock_asc">Stock (menos a más)</option>
-            <option value="stock_desc">Stock (más a menos)</option>
-          </Select>
-          <Input label="Buscar producto" value={busqueda} placeholder="Nombre parcial…" onChange={(e) => setBusqueda(e.target.value)} />
+            <Input label="Buscar producto" value={busqueda} placeholder="Nombre parcial…" onChange={(e) => setBusqueda(e.target.value)} />
+          </div>
+          <div className="sg-stock-sort-control">
+            <Select label="Ordenar por" value={ordenStock} onChange={(e) => setOrdenStock(e.target.value)}>
+              <option value="producto_asc">Producto (A - Z)</option>
+              <option value="producto_desc">Producto (Z - A)</option>
+              <option value="stock_asc">Stock (- a +)</option>
+              <option value="stock_desc">Stock (+ a -)</option>
+            </Select>
+          </div>
         </div>
         {rowsStock.length === 0 ? (
           <p className="sg-muted-mini" role="status">Sin registros para los filtros actuales.</p>
         ) : (
           <Table columns={columnasStock} rows={rowsStock} />
         )}
+        </div>
+        {esSecretaria ? <StockChecklistPrintTable lineas={lineasOrdenadas} /> : null}
       </Card>
 
       {modal?.type === 'pedidos_repo' ? (
@@ -534,14 +618,13 @@ export default function StockKioscoPage() {
       ) : null}
 
       {modal?.type === 'repo' ? (
-        <Modal title={`Solicitar nueva reposición — ${modal.nombreProducto}`} onClose={() => setModal(null)}>
+        <Modal title={`Solicitar reposición — ${modal.nombreProducto}`} onClose={() => setModal(null)}>
           <p className="sg-muted-mini">{modal.sedeNombre}</p>
           <form className="sg-grid" onSubmit={enviarReposicion}>
             <Input name="cantidad" label="Cantidad solicitada (unidades)" type="number" min="1" defaultValue="12" required />
             <Select name="motivo" label="Motivo" defaultValue="stock bajo">
               <option value="stock bajo">Stock bajo respecto al mínimo</option>
               <option value="agotado">Agotado o casi sin giro</option>
-              <option value="discrepancia inventario">Diferencia de inventario físico</option>
             </Select>
             <Button type="submit">Generar solicitud interna</Button>
           </form>
@@ -551,11 +634,40 @@ export default function StockKioscoPage() {
       {modal?.type === 'ajuste' ? (
         <Modal title={`Ajuste de stock — ${modal.nombreProducto}`} onClose={() => setModal(null)}>
           <p className="sg-muted-mini">{modal.sedeNombre} · stock actual: <strong>{modal.stockActual}</strong></p>
+          {modal.deltaSugerido != null && modal.deltaSugerido !== 0 ? (
+            <p className="sg-muted-mini">
+              Ajuste sugerido según reportes de mostrador:{' '}
+              <strong>{modal.deltaSugerido > 0 ? '+' : ''}{modal.deltaSugerido}</strong> u.
+              {modal.stockActual != null ? (
+                <> · Stock resultante: <strong>{Math.max(0, modal.stockActual + modal.deltaSugerido)}</strong></>
+              ) : null}
+            </p>
+          ) : null}
           <p className="sg-muted-mini">Al <strong>aplicar el ajuste</strong>, todos los faltantes de mostrador <strong>pendientes</strong> de este producto en esta sede quedan marcados como <strong>tratados</strong> automáticamente (no hace falta volver atrás).</p>
-          <form className="sg-grid" onSubmit={ejecutarAjuste}>
-            <Input name="delta" label="Variación (+ entra, − sale)" type="number" placeholder="Ej.: -2 o +5" required />
-            <Input name="motivo" label="Motivo (obligatorio en auditoría)" required placeholder="Ej. inventario físico 01/06" />
-            <Button type="submit">Aplicar ajuste</Button>
+          <form
+            key={`ajuste-${modal.productoId}-${modal.deltaSugerido ?? 'manual'}`}
+            className="sg-grid"
+            onSubmit={ejecutarAjuste}
+          >
+            <Input
+              name="delta"
+              label="Variación (+ entra, − sale)"
+              type="number"
+              step="1"
+              defaultValue={modal.deltaSugerido ?? ''}
+              readOnly={Boolean(modal.fromIncidencias && modal.deltaSugerido)}
+              required
+              placeholder="Ej.: -2 si faltan 2 unidades"
+            />
+            <Input
+              name="motivo"
+              label="Motivo (obligatorio en auditoría)"
+              required
+              defaultValue={modal.motivoSugerido ?? ''}
+              readOnly={Boolean(modal.fromIncidencias && modal.motivoSugerido)}
+              placeholder="Ej. cierre reportes mostrador"
+            />
+            <Button type="submit">{modal.fromIncidencias && modal.deltaSugerido ? 'Aprobar ajuste' : 'Aplicar ajuste'}</Button>
           </form>
         </Modal>
       ) : null}
@@ -563,9 +675,20 @@ export default function StockKioscoPage() {
       {modal?.type === 'faltante' ? (
         <Modal title={`Faltante en mostrador — ${modal.nombreProducto}`} onClose={() => setModal(null)}>
           <p className="sg-muted-mini">{modal.sedeNombre}</p>
-          <p className="sg-muted-mini">Avisá a compras/reposición desde acá.</p>
+          <p className="sg-muted-mini">
+            Indicá la diferencia respecto al stock en sistema: número <strong>negativo</strong> si faltan unidades,{' '}
+            <strong>positivo</strong> si sobran.
+          </p>
           <form className="sg-grid" onSubmit={enviarFaltanteMostrador}>
-            <Input name="observacion" label="Detalle opcional para logística (rotura, fecha estimada reposición…)" placeholder="Ej.: góndola vacía desde ayer…" />
+            <Input
+              name="variacion"
+              label="Unidades de diferencia (− faltan, + sobran)"
+              type="number"
+              step="1"
+              required
+              placeholder="Ej.: -3 si faltan 3 en góndola"
+            />
+            <Input name="observacion" label="Detalle opcional (rotura, fecha estimada reposición…)" placeholder="Ej.: góndola vacía desde ayer…" />
             <Button type="submit">Enviar aviso interno</Button>
           </form>
         </Modal>
@@ -586,6 +709,9 @@ export default function StockKioscoPage() {
                   <div className="sg-incid-card-body">
                     <p className="sg-incid-fecha">{new Date(it.creado ?? '').toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</p>
                     <p><strong>Avisado por:</strong>{' '}{usuariosPorId[it.reportadoPorUsuarioId]?.nombreCompleto ?? it.reportadoPorNombre ?? '—'}</p>
+                    {etiquetaVariacionDeclarada(it.variacionDeclarada) ? (
+                      <p><strong>Diferencia informada:</strong> {etiquetaVariacionDeclarada(it.variacionDeclarada)}</p>
+                    ) : null}
                     {it.observacion ? (
                       <p className="sg-incid-detail">{it.observacion}</p>
                     ) : null}
@@ -596,22 +722,50 @@ export default function StockKioscoPage() {
           )}
           {puedeAjustar ? (
             <div className="sg-incid-ajuste-bloque">
-              <p className="sg-muted-mini"><strong>Administración</strong> · si el conteo físico no coincide, usá el ajuste más abajo: al guardarlo se archivan automáticamente todos los informes pendientes de esta lista.</p>
-              <p className="sg-muted-mini">Stock en sistema ahora: <strong>{stockFilaModalIncidencias != null ? stockFilaModalIncidencias.stockActual : '—'}</strong></p>
+              <p className="sg-muted-mini">
+                <strong>Administración</strong> · revisá los reportes y aprobá el ajuste sugerido. Al guardar se archivan
+                automáticamente todos los informes pendientes de esta lista.
+              </p>
+              <p className="sg-muted-mini">
+                Stock en sistema ahora: <strong>{stockFilaModalIncidencias != null ? stockFilaModalIncidencias.stockActual : '—'}</strong>
+                {incidenciasModalPendientes.length ? (
+                  <>
+                    {' '}
+                    · Ajuste neto sugerido:{' '}
+                    <strong>
+                      {(() => {
+                        const delta = sumarVariacionDeclarada(incidenciasModalPendientes)
+                        return delta === 0 ? 'sin cantidades informadas' : `${delta > 0 ? '+' : ''}${delta} u.`
+                      })()}
+                    </strong>
+                  </>
+                ) : null}
+              </p>
               <Button
                 type="button"
                 kind="secondary"
-                onClick={() =>
+                onClick={() => {
+                  const deltaSugerido = sumarVariacionDeclarada(incidenciasModalPendientes)
+                  const stockActual = stockFilaModalIncidencias != null ? stockFilaModalIncidencias.stockActual : 0
                   setModal({
                     type: 'ajuste',
                     sedeId: modal.sedeId,
                     sedeNombre: modal.sedeNombre,
                     productoId: modal.productoId,
                     nombreProducto: modal.nombreProducto,
-                    stockActual: stockFilaModalIncidencias != null ? stockFilaModalIncidencias.stockActual : 0,
-                  })}
+                    stockActual,
+                    fromIncidencias: true,
+                    deltaSugerido: deltaSugerido !== 0 ? deltaSugerido : undefined,
+                    motivoSugerido:
+                      deltaSugerido !== 0
+                        ? `Aprobación reportes mostrador (${incidenciasModalPendientes.length} aviso${incidenciasModalPendientes.length === 1 ? '' : 's'})`
+                        : undefined,
+                  })
+                }}
               >
-                Ajuste físico de stock
+                {sumarVariacionDeclarada(incidenciasModalPendientes) !== 0
+                  ? 'Aprobar ajuste sugerido'
+                  : 'Ajuste físico de stock'}
               </Button>
             </div>
           ) : null}

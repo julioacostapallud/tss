@@ -25,7 +25,7 @@ export const routeDefs = {
     element: <ReciboDigitalPage />,
     roles: [ROLES.SECRETARIA, ROLES.ALUMNO, ROLES.ADMINISTRADOR, ROLES.ENCARGADO],
   },
-  '/kiosco/venta': { title: 'SquatShop — venta rápida en mostrador', element: <RegistrarVentaKioscoPage />, roles: [ROLES.SECRETARIA] },
+  '/kiosco/venta': { title: 'SquatShop Ventas', element: <RegistrarVentaKioscoPage />, roles: [ROLES.SECRETARIA] },
   '/kiosco/stock': { title: 'Stock por sucursal', element: <StockKioscoPage />, roles: [ROLES.SECRETARIA, ROLES.ENCARGADO, ROLES.ADMINISTRADOR] },
   '/kiosco/ventas': {
     title: 'Ventas SquatShop por sucursal',

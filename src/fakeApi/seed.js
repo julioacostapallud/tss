@@ -1,6 +1,7 @@
 import { ROLES } from '../shared/constants/roles'
-import { TURNOS } from '../shared/constants/turnos'
+import { turnoPorFechaHora } from '../shared/constants/turnos'
 import { calculateProratedAmount, comparePeriodosYM, maxPeriodoYm, periodosRolling } from '../modules/pagos/utils/pagosCalculations'
+import { calcularArqueoCaja, calcularResumenVentasCaja } from '../modules/kiosco/utils/cajaCalculations'
 
 const now = new Date()
 const todayIso = now.toISOString()
@@ -134,20 +135,17 @@ function fechaAltaPorIndice(i) {
   return `${anioBase + Math.floor((i * 5) / 12)}-${String((mes % 12) + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
 }
 
-function tierCuentaPorPerfil(indiceSede, sedeId) {
-  if (sedeId === 'sede-centro') {
-    if (indiceSede % 11 === 0) return 'pendiente'
-    if (indiceSede === 37) return 'vencido'
-    return 'alDia'
-  }
-  if (sedeId === 'sede-norte') {
-    if (indiceSede % 10 === 0) return 'pendiente'
-    if (indiceSede === 41) return 'vencido'
-    return 'alDia'
-  }
-  if (indiceSede % 12 === 0) return 'pendiente'
-  if (indiceSede === 35) return 'vencido'
-  return 'alDia'
+/** Alumnos del acceso rápido en login (demoQuickLogin.js). */
+const DEMO_ALUMNO_IDS_DOS_IMPAGOS = new Set(['al-001', 'al-002'])
+
+function tierCuentaPorPerfil(indiceSede, sedeId, alumnoId) {
+  if (DEMO_ALUMNO_IDS_DOS_IMPAGOS.has(alumnoId)) return 'dos_impagos'
+  const sedeOffset = sedeId === 'sede-centro' ? 0 : sedeId === 'sede-norte' ? 3 : 6
+  const m10 = (indiceSede + sedeOffset) % 10
+  if (m10 < 3) return 'alDia'
+  if (m10 < 6) return 'un_impago'
+  if (m10 < 9) return 'dos_impagos'
+  return 'pendiente'
 }
 
 const users = [
@@ -181,6 +179,7 @@ const users = [
     nombreCompleto: 'Susana Garcia',
     role: ROLES.SECRETARIA,
     sedeId: 'sede-centro',
+    turnoAsignado: 'manana',
   },
   {
     id: 'u-sec-2',
@@ -189,6 +188,7 @@ const users = [
     nombreCompleto: 'Belen Soto',
     role: ROLES.SECRETARIA,
     sedeId: 'sede-norte',
+    turnoAsignado: 'manana',
   },
   {
     id: 'u-sec-3',
@@ -197,6 +197,61 @@ const users = [
     nombreCompleto: 'Mariela Ruiz',
     role: ROLES.SECRETARIA,
     sedeId: 'sede-sur',
+    turnoAsignado: 'manana',
+  },
+  {
+    id: 'u-sec-4',
+    email: 'secretaria.centro.tarde@squatgym.com',
+    password: 'Secret123*',
+    nombreCompleto: 'Carla Mendez',
+    role: ROLES.SECRETARIA,
+    sedeId: 'sede-centro',
+    turnoAsignado: 'tarde',
+  },
+  {
+    id: 'u-sec-5',
+    email: 'secretaria.centro.noche@squatgym.com',
+    password: 'Secret123*',
+    nombreCompleto: 'Noelia Paz',
+    role: ROLES.SECRETARIA,
+    sedeId: 'sede-centro',
+    turnoAsignado: 'noche',
+  },
+  {
+    id: 'u-sec-6',
+    email: 'secretaria.norte.tarde@squatgym.com',
+    password: 'Secret123*',
+    nombreCompleto: 'Paula Navarro',
+    role: ROLES.SECRETARIA,
+    sedeId: 'sede-norte',
+    turnoAsignado: 'tarde',
+  },
+  {
+    id: 'u-sec-7',
+    email: 'secretaria.norte.noche@squatgym.com',
+    password: 'Secret123*',
+    nombreCompleto: 'Rocio Peralta',
+    role: ROLES.SECRETARIA,
+    sedeId: 'sede-norte',
+    turnoAsignado: 'noche',
+  },
+  {
+    id: 'u-sec-8',
+    email: 'secretaria.sur.tarde@squatgym.com',
+    password: 'Secret123*',
+    nombreCompleto: 'Laura Cabrera',
+    role: ROLES.SECRETARIA,
+    sedeId: 'sede-sur',
+    turnoAsignado: 'tarde',
+  },
+  {
+    id: 'u-sec-9',
+    email: 'secretaria.sur.noche@squatgym.com',
+    password: 'Secret123*',
+    nombreCompleto: 'Natalia Sosa',
+    role: ROLES.SECRETARIA,
+    sedeId: 'sede-sur',
+    turnoAsignado: 'noche',
   },
 ]
 
@@ -297,10 +352,22 @@ function daysInMonth(year, month0) {
   return new Date(year, month0 + 1, 0).getDate()
 }
 
-const sedesPorSecretaria = {
-  'sede-centro': 'u-sec-1',
-  'sede-norte': 'u-sec-2',
-  'sede-sur': 'u-sec-3',
+const secretariasPorSedeTurno = {
+  'sede-centro': {
+    manana: 'u-sec-1',
+    tarde: 'u-sec-4',
+    noche: 'u-sec-5',
+  },
+  'sede-norte': {
+    manana: 'u-sec-2',
+    tarde: 'u-sec-6',
+    noche: 'u-sec-7',
+  },
+  'sede-sur': {
+    manana: 'u-sec-3',
+    tarde: 'u-sec-8',
+    noche: 'u-sec-9',
+  },
 }
 
 function buildVentasKiosco() {
@@ -346,13 +413,15 @@ function buildVentasKiosco() {
           const total = items.reduce((acc, it) => acc + it.subtotal, 0)
           const hour = 8 + (idx % 13)
           const minute = (idx * 7) % 60
+          const fechaHora = new Date(y, m0, day, hour, minute, 0)
+          const turno = turnoPorFechaHora(fechaHora)
 
           out.push({
             id: `ven-${String(idVenta).padStart(5, '0')}`,
             sedeId: sede.id,
-            fechaHora: new Date(y, m0, day, hour, minute, 0).toISOString(),
-            turno: TURNOS[(day + n) % TURNOS.length],
-            secretariaId: sedesPorSecretaria[sede.id],
+            fechaHora: fechaHora.toISOString(),
+            turno,
+            secretariaId: secretariasPorSedeTurno[sede.id][turno],
             items,
             total,
             medioPago: medios[(idx + day) % medios.length],
@@ -367,7 +436,78 @@ function buildVentasKiosco() {
   return out
 }
 
-const ventasKiosco = buildVentasKiosco()
+function vincularVentasACajasHistoricas(ventas) {
+  const hoy = new Date().toISOString().slice(0, 10)
+  const grupos = new Map()
+  const ventasOut = ventas.map((v) => ({ ...v }))
+
+  ventasOut.forEach((v) => {
+    const day = v.fechaHora.slice(0, 10)
+    if (day >= hoy) return
+    const key = `${v.sedeId}|${day}`
+    if (!grupos.has(key)) grupos.set(key, [])
+    grupos.get(key).push(v)
+  })
+
+  const cajasKiosco = []
+  let n = 1
+
+  for (const [key, grupo] of grupos) {
+    const [sedeId, day] = key.split('|')
+    const cajaId = `caja-${String(n).padStart(4, '0')}`
+    const montoInicial = 45000 + (n % 4) * 15000
+    const resumenSistema = calcularResumenVentasCaja(grupo, montoInicial)
+    const diffEfectivo = n % 5 === 0 ? -800 : 0
+    const arqueo = {
+      efectivoContado:
+        montoInicial + (resumenSistema.totalesPorMedio.efectivo ?? 0) + diffEfectivo,
+      debitoVerificado: resumenSistema.totalesPorMedio.tarjeta_debito ?? 0,
+      creditoVerificado: resumenSistema.totalesPorMedio.tarjeta_credito ?? 0,
+      qrVerificado: resumenSistema.totalesPorMedio.qr ?? 0,
+      transferenciaVerificada: resumenSistema.totalesPorMedio.transferencia ?? 0,
+    }
+    const conteoEnCaja = arqueo.efectivoContado ?? 0
+    const montoRetirado = Math.max(0, conteoEnCaja - 35000)
+    const resumenArqueo = calcularArqueoCaja({
+      resumenSistema,
+      arqueo,
+      montoRetirado,
+    })
+    const ajusteManualEfectivo = resumenArqueo.ajustePorDiferenciasEfectivo ?? 0
+    const usuarioId = secretariasPorSedeTurno[sedeId]?.tarde || 'u-sec-1'
+
+    cajasKiosco.push({
+      id: cajaId,
+      sedeId,
+      estado: 'cerrada',
+      usuarioId,
+      aperturaFechaHora: `${day}T08:15:00.000Z`,
+      cierreFechaHora: `${day}T22:45:00.000Z`,
+      montoInicial,
+      montoDejadoProxima: resumenArqueo.fondoDeCaja,
+      efectivoRealProximaApertura: resumenArqueo.fondoDeCaja,
+      montoRetirado: resumenArqueo.efectivoRetirado,
+      ajusteManualEfectivo,
+      ajustePorDiferenciasEfectivo: ajusteManualEfectivo,
+      observacionAjusteEfectivo: '',
+      comprobanteAperturaNumero: `CAJ-AP-${String(n).padStart(5, '0')}`,
+      comprobanteCierreNumero: `CAJ-CI-${String(n).padStart(5, '0')}`,
+      resumenSistema,
+      arqueo,
+      resumenArqueo,
+      observaciones: diffEfectivo ? 'Diferencia menor en efectivo — verificado con responsable.' : '',
+    })
+
+    grupo.forEach((v) => {
+      v.cajaId = cajaId
+    })
+    n += 1
+  }
+
+  return { cajasKiosco, ventasKiosco: ventasOut }
+}
+
+const { cajasKiosco, ventasKiosco } = vincularVentasACajasHistoricas(buildVentasKiosco())
 
 function ventasPorSedeProducto(ventas) {
   const m = {}
@@ -420,18 +560,19 @@ function deriveEstadoCuenta(alumno, plan, pagosDeSocio, periodoRef) {
 
 /** Cuotas mes a mes coherentes con el perfil de pago por sede y el período corriente del metadata. */
 function construirPagosCoherentes(alumnosList, periodoRef) {
-  const roll = periodosRolling(periodoRef, 12)
+  const roll = periodosRolling(periodoRef, 24)
   const pagosList = []
   let idNum = 1
 
   for (const alumno of alumnosList) {
     const plan = planes.find((pl) => pl.id === alumno.planId)
     if (!plan) continue
-    const tier = tierCuentaPorPerfil(alumno.indiceSede || 1, alumno.sedePrincipalId)
+    const tier = tierCuentaPorPerfil(alumno.indiceSede || 1, alumno.sedePrincipalId, alumno.id)
 
     for (let k = roll.length - 1; k >= 0; k -= 1) {
       const per = roll[k]
-      if (tier === 'vencido' && k <= 1) continue
+      if (tier === 'un_impago' && k === 0) continue
+      if (tier === 'dos_impagos' && k <= 1) continue
       if (tier === 'pendiente' && k === 0) continue
 
       const cuota = calculateProratedAmount(plan.precioMensual, alumno.fechaAlta, per)
@@ -624,7 +765,7 @@ audiMonths.forEach((mt, j) => {
 })
 
 export const initialSeed = {
-  metadata: { currentPeriod, createdAt: todayIso, seedVersion: 9 },
+  metadata: { currentPeriod, createdAt: todayIso, seedVersion: 15 },
   sedes,
   users,
   alumnos,
@@ -634,6 +775,7 @@ export const initialSeed = {
   productos,
   stock: stockRows,
   ventasKiosco,
+  cajasKiosco,
   pedidosReposicion,
   auditoria: auditoriaBootstrap,
   incidenciasMostrador: [],

@@ -1,5 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { CheckCircle } from 'react-feather'
 import { Button, Card, Input } from '../../../components/common/UI'
 import { MedioPagoSelector } from './MedioPagoSelector'
 import { pagosService } from '../services/pagos.service'
@@ -107,8 +108,9 @@ export function PagoOnlineAlumnoModal({
 
   async function ejecutarRegistroYSaludo() {
     const medioPago = medioRef.current
+    let creado = null
     try {
-      const creado = await pagosService.registrarPago({
+      creado = await pagosService.registrarPago({
         alumnoId: alumno.id,
         sedeId,
         fechaPago: new Date().toISOString().slice(0, 10),
@@ -119,7 +121,7 @@ export function PagoOnlineAlumnoModal({
         medioPago,
         estado: 'confirmado',
         reciboNumero: `RC-WEB-${Date.now()}`,
-        registradoPorUsuarioId: currentUser?.id ?? alumno.id,
+        registradoPorUsuarioId: 'online',
         promocionId: null,
         observacion: 'Pago online desde cuenta del socio',
       })
@@ -140,10 +142,8 @@ export function PagoOnlineAlumnoModal({
 
     setProcesando(false)
     setPagoExitoso(true)
-    await new Promise((r) => setTimeout(r, 3000))
-    setPagoExitoso(false)
-    onExito()
-    onClose()
+    await new Promise((r) => setTimeout(r, 2000))
+    onExito(creado)
   }
 
   function validarTarjetaFake() {
@@ -216,9 +216,10 @@ export function PagoOnlineAlumnoModal({
           }
         >
           {pagoExitoso ? (
-            <div className="sg-pago-exito-banner" role="status">
+            <div className="sg-pago-exito-banner" role="status" aria-live="polite">
+              <CheckCircle size={42} aria-hidden />
               <p className="sg-pago-exito-text">Pago exitoso</p>
-              <p className="sg-pago-exito-sub">Cerrando en unos segundos…</p>
+              <p className="sg-pago-exito-sub">Generando recibo...</p>
             </div>
           ) : (
             <>

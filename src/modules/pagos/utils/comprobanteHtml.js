@@ -1,12 +1,14 @@
 import { etiquetaMedioPago } from '../../../shared/constants/mediosPago'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 
-/** HTML autocontenido para ver / guardar comprobante de cuota. */
+/** HTML autocontenido para ver / guardar comprobante de pago. */
 export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
   const titular = alumno ? `${alumno.apellido}, ${alumno.nombre}` : 'Socio'
   const dni = alumno?.dni ?? '—'
   const fecha = pago.fechaPago || new Date().toISOString().slice(0, 10)
   const medio = etiquetaMedioPago(pago.medioPago)
+  const logoSrc = `${window.location.origin}/squatgym-icon.svg`
+  const registradoPor = pago.registradoPorUsuarioId === 'online' ? 'Pago online' : (pago.registradoPorUsuarioId ?? '—')
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -26,6 +28,8 @@ export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
       background: linear-gradient(135deg, #ea580c 0%, #c2410c 55%, #7c2d12 100%);
       color: #fff; padding: 1.75rem 1.5rem;
     }
+    .brand { display: flex; align-items: center; gap: .6rem; margin-bottom: .65rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
+    .brand img { width: 34px; height: 34px; filter: drop-shadow(0 2px 5px rgba(0,0,0,.22)); }
     .head h1 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: .02em; }
     .head p { margin: .4rem 0 0; opacity: .92; font-size: .9rem; }
     .badge {
@@ -42,14 +46,15 @@ export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
     .total span { display: block; font-size: .8rem; color: #9a3412; font-weight: 600; }
     .total strong { font-size: 1.45rem; color: #c2410c; }
     .foot { padding: 0 1.5rem 1.5rem; font-size: .78rem; color: #71717a; line-height: 1.45; }
-    @media print { body { background: #fff; } .wrap { margin: 0; max-width: none; } .doc { box-shadow: none; border: 0; } }
+    @media print { body { background: #fff; margin: 0; } .wrap { margin: 0; padding: 0; max-width: none; } .doc { box-shadow: none; border: 0; border-radius: 0; } }
   </style>
 </head>
 <body>
   <div class="wrap">
     <article class="doc">
       <header class="head">
-        <h1>SquatGym · Comprobante de cuota</h1>
+        <div class="brand"><img src="${logoSrc}" alt="" /><span>SquatGym</span></div>
+        <h1>Comprobante de pago</h1>
         <p>${pago.reciboNumero} · Comprobante digital</p>
         <span class="badge">Estado: ${pago.estado === 'confirmado' ? 'Abonado' : pago.estado}</span>
       </header>
@@ -62,6 +67,7 @@ export function buildComprobanteHtml({ pago, alumno, sedeNombre, planNombre }) {
           <div class="row"><dt>Período abonado</dt><dd>${pago.periodo}</dd></div>
           <div class="row"><dt>Plan</dt><dd>${planNombre ?? '—'}</dd></div>
           <div class="row"><dt>Medio de pago</dt><dd>${medio}</dd></div>
+          <div class="row"><dt>Registrado por</dt><dd>${registradoPor}</dd></div>
         </dl>
         <div class="total">
           <span>Total abonado</span>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 /**
  * Lista filtrada por texto. `options`: { value, label, keywords? } donde keywords texto extra para matching.
  */
-export function SearchableSelect({ label, options, value, onChange, placeholder = 'Buscar…', hint }) {
+export function SearchableSelect({ label, options, value, onChange, placeholder = 'Buscar…', hint, inputAriaLabel }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const boxRef = useRef(null)
@@ -62,6 +62,7 @@ export function SearchableSelect({ label, options, value, onChange, placeholder 
           }}
           aria-expanded={open}
           aria-autocomplete="list"
+          aria-label={inputAriaLabel || label || placeholder}
         />
         {open ? (
           <ul className="sg-searchable-list" role="listbox">

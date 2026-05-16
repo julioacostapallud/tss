@@ -122,7 +122,9 @@ function ShellLayout() {
   const closeSidebarTimerRef = useRef(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const menu = menuConfigByRole[currentUser?.role] || []
-  const [expandedSections, setExpandedSections] = useState(() => Object.fromEntries(menu.map((g) => [g.section, true])))
+  const [expandedSections, setExpandedSections] = useState(() =>
+    Object.fromEntries(menu.filter((entry) => entry.kind === 'group').map((g) => [g.section, true])),
+  )
   const sidebarExpanded = isDesktopNav ? hoverSidebar : isSidebarOpen
 
   const alerts = useMemo(() => deriveAlertsForUser(state, currentUser), [state, currentUser])
@@ -246,7 +248,27 @@ function ShellLayout() {
           <img src="/squatgym-icon.svg" alt="" width={18} height={18} />
           <span>SquatGym</span>
         </h2>
-        {menu.map((group) => (
+        {menu.map((entry) => {
+          if (entry.kind === 'link') {
+            const LinkIcon = entry.icon
+            return (
+              <NavLink
+                key={entry.path}
+                to={entry.path}
+                end
+                className={({ isActive }) => `sg-nav-home-link${isActive ? ' active' : ''}`}
+                onClick={() => setIsSidebarOpen(false)}
+              >
+                <span className="sg-nav-link-inner">
+                  {LinkIcon ? <LinkIcon size={15} aria-hidden /> : null}
+                  {entry.label}
+                </span>
+              </NavLink>
+            )
+          }
+
+          const group = entry
+          return (
           <div key={group.section} className="sg-menu-group">
             <button
               type="button"
@@ -295,7 +317,8 @@ function ShellLayout() {
               </nav>
             </div>
           </div>
-        ))}
+          )
+        })}
       </aside>
       {!isDesktopNav && isSidebarOpen ? <button type="button" className="sg-backdrop sg-no-print" onClick={() => setIsSidebarOpen(false)} aria-label="Cerrar menu" /> : null}
       <div className="sg-content">

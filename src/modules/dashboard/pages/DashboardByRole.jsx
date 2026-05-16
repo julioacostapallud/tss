@@ -251,6 +251,9 @@ function DashboardAdmin() {
           <Link className="sg-button sg-primary" to="/kiosco/stock">
             Stock <ArrowRight size={16} aria-hidden />
           </Link>
+          <Link className="sg-button sg-primary" to="/pagos/promociones">
+            Precios y promos <ArrowRight size={16} aria-hidden />
+          </Link>
         </div>
       </header>
 
@@ -447,117 +450,91 @@ function DashboardSecretaria() {
   const sid = currentUser?.sedeId
   const sedeNombre = state.sedes.find((s) => s.id === sid)?.nombre
   const per = state.metadata.currentPeriod
-  const prev = mesAnterior(per)
   const hoyIso = new Date().toISOString().slice(0, 10)
 
-  const cobPerSedeEste = state.pagos.filter((p) => p.sedeId === sid && p.periodo === per && p.estado === 'confirmado')
-  const sociosEste = new Set(cobPerSedeEste.map((p) => p.alumnoId)).size
-  const montoMes = cobPerSedeEste.reduce((a, x) => a + x.montoFinal, 0)
-  const montoMesPrev = state.pagos
-    .filter((p) => p.sedeId === sid && p.periodo === prev && p.estado === 'confirmado')
-    .reduce((a, b) => a + b.montoFinal, 0)
-
   const venHoy = state.ventasKiosco.filter((v) => v.sedeId === sid && v.fechaHora.slice(0, 10) === hoyIso)
-  const montoVenHoy = venHoy.reduce((a, x) => a + x.total, 0)
+  const pagosHoy = state.pagos.filter((p) => p.sedeId === sid && p.fechaPago === hoyIso)
+  const pagosPendientesDigitales = state.pagos.filter((p) => p.sedeId === sid && p.estado === 'pendiente')
 
-  const filaSocioSinCuotaMes = state.alumnos.filter(
-    (a) =>
-      a.sedePrincipalId === sid &&
-      a.estado !== 'inactivo' &&
-      !state.pagos.some((p) => p.alumnoId === a.id && p.periodo === per && p.estado === 'confirmado'),
-  ).length
-
-  const pendSedeDigital = state.pagos.filter((p) => p.sedeId === sid && p.estado === 'pendiente')
-
-  const activosLocales = state.alumnos.filter((a) => a.sedePrincipalId === sid && a.estado !== 'inactivo').length
-  const alDiaRatio = activosLocales ? (activosLocales - filaSocioSinCuotaMes) / activosLocales : 0
-
-  const dias7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date()
-    d.setHours(12, 0, 0, 0)
-    d.setDate(d.getDate() - (6 - i))
-    return d.toISOString().slice(0, 10)
-  })
-  const ventasPorDia = dias7.map((dia) =>
-    state.ventasKiosco
-      .filter((v) => v.sedeId === sid && v.fechaHora.slice(0, 10) === dia)
-      .reduce((acc, x) => acc + x.total, 0),
-  )
-  const vmaxK = Math.max(...ventasPorDia, 1)
+  const ultimasOperaciones = [
+    ...pagosHoy.map((p) => ({
+      id: `p-${p.id}`,
+      fechaHora: `${p.fechaPago}T12:00:00`,
+      cells: ['Pago', p.alumnoNombreSnapshot ?? p.alumnoId, p.estado, formatCurrency(p.montoFinal)],
+    })),
+    ...venHoy.map((v) => ({
+      id: `v-${v.id}`,
+      fechaHora: v.fechaHora,
+      cells: ['Venta', `${v.items.length} ítem${v.items.length !== 1 ? 's' : ''}`, 'registrada', formatCurrency(v.total)],
+    })),
+  ]
+    .sort((a, b) => b.fechaHora.localeCompare(a.fechaHora))
+    .slice(0, 6)
+    .map((op) => ({ key: op.id, cells: op.cells }))
 
   return (
     <section className="sg-dash-shell">
       <header className="sg-dash-hero sg-dash-hero--secret">
         <div>
-          <p className="sg-dash-hero-kicker">Recepción y pagos</p>
-          <h2 className="sg-dash-hero-title">{sedeNombre ?? 'Sede'}</h2>
+          <p className="sg-dash-hero-kicker">Recepción operativa</p>
+          <h2 className="sg-dash-hero-title">{sedeNombre ?? 'Tu sede'}</h2>
           <p className="sg-dash-hero-meta">
             <Calendar size={15} aria-hidden /> Turno · <strong>{hoyIso}</strong> · período <strong>{per}</strong>
           </p>
         </div>
         <div className="sg-dash-hero-actions">
-          <Link className="sg-button sg-primary" to="/pagos/registrar">Registrar pago</Link>
-          <Link className="sg-button sg-primary" to="/kiosco/venta">Venta rápida</Link>
-          <Link className="sg-button sg-primary" to="/kiosco/stock">Consultar stock</Link>
+          <Link className="sg-button sg-primary" to="/pagos/registrar">Pagos</Link>
+          <Link className="sg-button sg-primary" to="/kiosco/venta">Ventas</Link>
+          <Link className="sg-button sg-primary" to="/kiosco/stock">Stock</Link>
         </div>
       </header>
 
+      <div className="sg-dash-quick-today">
+        <article className="sg-dash-today-pill sg-dash-today-pill--pagos">
+          <CreditCard size={18} aria-hidden />
+          <div>
+            <span>Pagos cargados hoy</span>
+            <strong>{pagosHoy.length}</strong>
+          </div>
+        </article>
+        <article className="sg-dash-today-pill sg-dash-today-pill--kiosco">
+          <ShoppingBag size={18} aria-hidden />
+          <div>
+            <span>Ventas cargadas hoy</span>
+            <strong>{venHoy.length}</strong>
+          </div>
+        </article>
+        <article className={`sg-dash-today-pill sg-dash-today-pill--${pagosPendientesDigitales.length ? 'warn' : 'ok'}`}>
+          <AlertTriangle size={18} aria-hidden />
+          <div>
+            <span>Pagos digitales pendientes</span>
+            <strong>{pagosPendientesDigitales.length}</strong>
+          </div>
+        </article>
+      </div>
+
       <div className="sg-dash-pillars sg-dash-pillars--two">
-        <article className="sg-dash-pillar sg-dash-pillar--pagos">
-          <div className="sg-dash-pillar-head">
-            <CreditCard size={22} aria-hidden className="sg-dash-pillar-icon-inline" />
-            <div><h3>Cuotas esta sede · {per}</h3><p>Pagos confirmadas</p></div>
-          </div>
-          <p className="sg-dash-pillar-number">{formatCurrency(montoMes)}</p>
-          <TrendChip value={diffPct(montoMes, montoMesPrev)} />
-          <CompareBars a={montoMes} b={montoMesPrev} labelA={per} labelB={prev} />
-          <ul className="sg-dash-mini-list">
-            <li><Users size={14} /> <strong>{sociosEste}</strong> socios con al menos un pago registrado este mes</li>
-          </ul>
-        </article>
-
-        <article className="sg-dash-pillar sg-dash-pillar--kiosco">
-          <div className="sg-dash-pillar-head">
-            <ShoppingBag size={22} aria-hidden className="sg-dash-pillar-icon-inline" />
-            <div><h3>SquatShop · hoy</h3><p>Ventas en mostrador</p></div>
-          </div>
-          <p className="sg-dash-pillar-number">{formatCurrency(montoVenHoy)}</p>
-          <p className="sg-dash-kiosco-meta">{venHoy.length} operaciones hoy · últimos 7 días · mostrador</p>
-          <div className="sg-dash-mini-spark" aria-label="Ventas kiosco últimos siete días">
-            {ventasPorDia.map((monto, idx) => {
-              const h = Math.max(14, Math.round((monto / vmaxK) * 52))
-              return (
-                <span key={`sp-${idx}`} className="sg-dash-spark-cell" title={`${dias7[idx]}: ${formatCurrency(monto)}`} style={{ height: `${h}px` }} />
-              )
-            })}
-          </div>
-        </article>
-
-        <aside className="sg-dash-sec-aside">
-          <div className={`sg-dash-tile sg-dash-tile--${filaSocioSinCuotaMes > 0 ? 'warn' : 'ok'}`}>
-            <AlertTriangle size={22} aria-hidden />
-            <div>
-              <h4>Sin cuota mes</h4>
-              <p className="sg-dash-tile-stat">{filaSocioSinCuotaMes}</p>
-              <p className="sg-dash-tile-sub"> socios locales activos pendientes en {per}</p>
-              <Link className="sg-dash-inline-link" to="/pagos/registrar">Ir a pagos <ArrowRight size={13} /></Link>
+        <Card title="Pendientes de mostrador">
+          <div className="sg-dash-sec-aside">
+            <div className={`sg-dash-tile sg-dash-tile--${pagosPendientesDigitales.length > 0 ? 'neutral' : 'ok'}`}>
+              <CreditCard size={22} aria-hidden />
+              <div>
+                <h4>Acreditación pendiente</h4>
+                <p className="sg-dash-tile-stat">{pagosPendientesDigitales.length}</p>
+                <p className="sg-dash-tile-sub">pagos digitales cargados para revisar</p>
+                <Link className="sg-dash-inline-link" to="/pagos/registrar">Ir a pagos <ArrowRight size={13} /></Link>
+              </div>
             </div>
           </div>
+        </Card>
 
-          <div className={`sg-dash-tile sg-dash-tile--${pendSedeDigital.length > 0 ? 'neutral' : 'ok'}`}>
-            <CreditCard size={22} aria-hidden />
-            <div>
-              <h4>Acreditación pendiente</h4>
-              <p className="sg-dash-tile-stat">{pendSedeDigital.length}</p>
-              <p className="sg-dash-tile-sub"> registros pendientes esta sede (medios digitales)</p>
-              <Link className="sg-dash-inline-link" to="/pagos/registrar">Revisar <ArrowRight size={13} /></Link>
-            </div>
-          </div>
-
-          <div className="sg-dash-ring-wrap">
-            <MiniRing ratio={alDiaRatio} label="Cuotas en tu sede" />
-          </div>
-        </aside>
+        <Card title="Últimas operaciones de hoy">
+          {ultimasOperaciones.length ? (
+            <Table columns={['Tipo', 'Detalle', 'Estado', 'Importe']} rows={ultimasOperaciones} />
+          ) : (
+            <p className="sg-muted-mini" role="status">Todavía no hay pagos o ventas cargadas hoy en esta sede.</p>
+          )}
+        </Card>
       </div>
     </section>
   )

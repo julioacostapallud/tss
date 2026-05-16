@@ -1,31 +1,101 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Badge, Button, Card, Select, Stat, Table } from '../../../components/common/UI'
+import { Badge, Button, Card, Select, Table } from '../../../components/common/UI'
 import { useAppState } from '../../../app/AppState'
 import { SearchableSelect } from '../../../components/forms/SearchableSelect'
 import { MedioPagoSelector } from '../components/MedioPagoSelector'
-import { ResumenPago } from '../components/ResumenPago'
-import { calculateProratedAmount, applyDiscount, periodosRolling, promocionAplicaCuotaPlan } from '../utils/pagosCalculations'
+import {
+  applyDiscount,
+  calculateProratedAmount,
+  periodosRolling,
+  promocionAplicaCuotaPlan,
+} from '../utils/pagosCalculations'
 import { pagosService } from '../services/pagos.service'
 import { fakeApi } from '../../../fakeApi'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
-import { etiquetaMedioPago, MEDIOS_DIGITALES } from '../../../shared/constants/mediosPago'
+import { MEDIOS_DIGITALES } from '../../../shared/constants/mediosPago'
+import { ReciboDigitalModal } from '../components/ReciboDigitalModal'
 
-function periodosPendientesSocio(alumnoId, state) {
-  const roll = periodosRolling(state.metadata.currentPeriod, 20)
-  return roll.reverse().filter((period) => !state.pagos.some((p) => p.alumnoId === alumnoId && p.periodo === period && p.estado === 'confirmado'))
+const PAGE_SIZE = 6
+
+function RegistrarPagoModal({ open, alumno, plan, periodos, medioPago, setMedioPago, procesando, onClose, onConfirm }) {
+  if (!open || !alumno) return null
+  const subtotal = periodos.reduce((acc, row) => acc + row.pactadoMes, 0)
+  const descuento = periodos.reduce((acc, row) => acc + row.descuento, 0)
+  const total = subtotal - descuento
+  const tieneDescuentos = descuento > 0
+
+  return (
+    <div className="sg-modal-overlay sg-modal-promo" role="dialog" aria-modal aria-labelledby="registrar-pago-modal-title">
+      <div className="sg-modal-inner-promo" onClick={(e) => e.stopPropagation()}>
+        <Card
+          title={<span id="registrar-pago-modal-title">Registrar pago</span>}
+          actions={<Button type="button" kind="ghost" disabled={procesando} onClick={onClose}>Cerrar</Button>}
+        >
+          {procesando ? (
+            <div className="sg-processing-box" role="status" aria-live="polite">
+              <span className="sg-spinner" aria-hidden />
+              <strong>Registrando pago...</strong>
+            </div>
+          ) : (
+            <div className="sg-grid" style={{ gap: '.8rem' }}>
+              <div className="sg-datos-socio-mini">
+                <p><strong>{alumno.apellido}, {alumno.nombre}</strong></p>
+                <p>Plan: <strong>{plan?.nombre ?? '—'}</strong></p>
+              </div>
+              <Table
+                columns={tieneDescuentos ? ['Período', 'Monto', 'Promoción', 'Descuento', 'Final'] : ['Período', 'Monto']}
+                rows={periodos.map((row) => ({
+                  key: row.per,
+                  cells: tieneDescuentos
+                    ? [row.per, formatCurrency(row.pactadoMes), row.promocion?.nombre ?? '—', `- ${formatCurrency(row.descuento)}`, formatCurrency(row.final)]
+                    : [row.per, formatCurrency(row.pactadoMes)],
+                }))}
+              />
+              {tieneDescuentos ? (
+                <div className="sg-pago-totales-modal">
+                  <div><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
+                  <div><span>Descuento</span><strong>- {formatCurrency(descuento)}</strong></div>
+                </div>
+              ) : null}
+              <div className="sg-recibo-amount-box">
+                <span>Total a registrar</span>
+                <strong>{formatCurrency(total)}</strong>
+              </div>
+              <MedioPagoSelector label="Medio de pago" value={medioPago} onChange={setMedioPago} />
+              <Button type="button" onClick={onConfirm}>Confirmar pago</Button>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  )
 }
 
 export default function GestionPagosPage() {
   const { state, currentUser, reload } = useAppState()
   const [alumnoId, setAlumnoId] = useState('')
   const [periodosSeleccionados, setPeriodosSeleccionados] = useState(() => new Set())
-  const [promocionId, setPromocionId] = useState('')
   const [medioPago, setMedioPago] = useState('efectivo')
-  const [mensaje, setMensaje] = useState('')
+  const [promocionesPorPeriodo, setPromocionesPorPeriodo] = useState({})
+  const [reciboModalId, setReciboModalId] = useState(null)
+  const [reciboPagosFallback, setReciboPagosFallback] = useState([])
+  const [page, setPage] = useState(0)
+  const [pagoModalOpen, setPagoModalOpen] = useState(false)
+  const [procesandoPago, setProcesandoPago] = useState(false)
 
   const alumno = state.alumnos.find((a) => a.id === alumnoId)
   const plan = state.planes.find((p) => p.id === alumno?.planId)
+  const sede = state.sedes.find((s) => s.id === alumno?.sedePrincipalId)
+
+  const promosVigentes = useMemo(() => {
+    if (!alumno?.planId) return []
+    return state.promociones.filter((promo) => promocionAplicaCuotaPlan(promo, alumno.planId))
+  }, [state.promociones, alumno?.planId])
+
+  const promosVigentesById = useMemo(
+    () => Object.fromEntries(promosVigentes.map((promo) => [promo.id, promo])),
+    [promosVigentes],
+  )
 
   const opcionesAlumnos = useMemo(
     () =>
@@ -39,227 +109,282 @@ export default function GestionPagosPage() {
     [state.alumnos, state.sedes],
   )
 
-  const pendientes = alumno ? periodosPendientesSocio(alumno.id, state) : []
-
-  const filasLiquidacionMes = useMemo(() => {
+  const periodosRows = useMemo(() => {
     if (!alumno || !plan) return []
-    return [...periodosRolling(state.metadata.currentPeriod, 14)].reverse().map((per) => {
+    return periodosRolling(state.metadata.currentPeriod, 24).map((per) => {
       const pactadoMes = calculateProratedAmount(plan.precioMensual ?? 0, alumno.fechaAlta, per)
       const opsMes = state.pagos.filter((p) => p.alumnoId === alumno.id && p.periodo === per)
-      const cobConf = opsMes.filter((p) => p.estado === 'confirmado').reduce((a, x) => a + x.montoFinal, 0)
-      const esperaLiquidación = opsMes.some((p) => p.estado === 'pendiente')
-      let estadoTxt = pactadoMes <= 0 ? '—' : cobConf >= pactadoMes ? 'Pagado' : esperaLiquidación ? 'Pago pendiente de acreditar' : 'Sin registrar'
-      let tone = pactadoMes <= 0 ? 'neutral' : cobConf >= pactadoMes ? 'ok' : esperaLiquidación ? 'warn' : 'warn'
-      const puedeRegistrar = pactadoMes > 0 && !opsMes.some((p) => p.estado === 'confirmado')
-      return { per, pactadoMes, estadoTxt, tone, puedeRegistrar }
+      const pagoConfirmado = opsMes.find((p) => p.estado === 'confirmado')
+      const pagoPendiente = opsMes.find((p) => p.estado === 'pendiente')
+      const recibo = pagoConfirmado ?? pagoPendiente ?? null
+      const estadoTxt = pactadoMes <= 0 ? '—' : pagoConfirmado ? 'Pagado' : pagoPendiente ? 'Pendiente' : 'Impago'
+      const tone = pagoConfirmado ? 'ok' : pagoPendiente ? 'neutral' : 'warn'
+      const puedeSeleccionar = pactadoMes > 0 && !pagoConfirmado && !pagoPendiente
+      return { per, pactadoMes, estadoTxt, tone, puedeSeleccionar, recibo }
     })
   }, [alumno, plan, state.metadata.currentPeriod, state.pagos])
 
-  const promosFiltradas = useMemo(
-    () => state.promociones.filter((pr) => (plan?.id ? promocionAplicaCuotaPlan(pr, plan.id) : false)),
-    [state.promociones, plan?.id],
+  const totalPages = Math.max(1, Math.ceil(periodosRows.length / PAGE_SIZE))
+  const pageRows = periodosRows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const seleccionadosRows = useMemo(
+    () => periodosRows
+      .filter((row) => periodosSeleccionados.has(row.per))
+      .map((row) => {
+        const promocion = promosVigentesById[promocionesPorPeriodo[row.per]] ?? null
+        const { descuento, final } = applyDiscount(row.pactadoMes, promocion)
+        return { ...row, promocion, descuento, final }
+      }),
+    [periodosRows, periodosSeleccionados, promocionesPorPeriodo, promosVigentesById],
   )
-
-  const promocion = state.promociones.find((pr) => pr.id === promocionId)
-
-  const periodoPreview = periodosSeleccionados.size ? [...periodosSeleccionados].sort()[0] : state.metadata.currentPeriod
-  const cuotaEjemploPlan = calculateProratedAmount(plan?.precioMensual || 0, alumno?.fechaAlta, periodoPreview)
-  const { descuento, final } = applyDiscount(cuotaEjemploPlan, promocion)
+  const subtotalSeleccionado = seleccionadosRows.reduce((acc, row) => acc + row.pactadoMes, 0)
+  const descuentoSeleccionado = seleccionadosRows.reduce((acc, row) => acc + row.descuento, 0)
+  const totalSeleccionado = subtotalSeleccionado - descuentoSeleccionado
+  const tienePeriodoAnteriorImpago = periodosRows.some(
+    (row) => row.per < state.metadata.currentPeriod && row.estadoTxt === 'Impago',
+  )
+  const accesoHabilitado = alumno ? !tienePeriodoAnteriorImpago : false
 
   function togglePeriodo(per) {
     setPeriodosSeleccionados((prev) => {
       const next = new Set(prev)
-      if (next.has(per)) next.delete(per)
-      else next.add(per)
+      if (next.has(per)) {
+        next.delete(per)
+        setPromocionesPorPeriodo((prevPromos) => {
+          const nextPromos = { ...prevPromos }
+          delete nextPromos[per]
+          return nextPromos
+        })
+      } else {
+        next.add(per)
+      }
       return next
     })
   }
 
-  const historia = alumno
-    ? [...state.pagos]
-        .filter((x) => x.alumnoId === alumno.id)
-        .sort((a, b) => {
-          const aAbierto = a.estado !== 'confirmado'
-          const bAbierto = b.estado !== 'confirmado'
-          if (aAbierto !== bAbierto) return aAbierto ? -1 : 1
-          if (a.periodo !== b.periodo) return a.periodo < b.periodo ? 1 : -1
-          return 0
-        })
-        .slice(0, 22)
-    : []
-  const historiaRows = historia.map((p) => ({
-    key: p.id,
-    cells: [
-      p.periodo,
-      p.estado,
-      formatCurrency(p.montoFinal),
-      etiquetaMedioPago(p.medioPago),
-      <Link key={`r-${p.id}`} className="sg-link-subtle" to={`/pagos/recibo/${p.id}`}>Recibo PDF</Link>,
-    ],
-  }))
+  function seleccionarPromocionPeriodo(per, promoId) {
+    setPromocionesPorPeriodo((prev) => {
+      const next = { ...prev }
+      if (promoId) next[per] = promoId
+      else delete next[per]
+      return next
+    })
+  }
 
   const alSeleccionarSocio = (id) => {
     setAlumnoId(id)
     setPeriodosSeleccionados(new Set())
-    setMensaje('')
+    setPromocionesPorPeriodo({})
+    setPage(0)
   }
 
-  async function ejecutarLiquidacion(event) {
-    event.preventDefault()
-    setMensaje('')
+  async function registrarPagoSeleccionado() {
     if (!alumno || !plan) return
-    if (!periodosSeleccionados.size) {
-      setMensaje('Seleccioná uno o más períodos sin cobro confirmado.')
-      return
-    }
-    const períodosAsc = [...periodosSeleccionados].sort()
-    let okTotal = 0
-    let errorList = ''
+    setProcesandoPago(true)
+    const reciboNumero = `RC-${Date.now()}${Math.floor(Math.random() * 999)}`
+    const estado = MEDIOS_DIGITALES.includes(medioPago) ? 'pendiente' : 'confirmado'
+    const creados = []
 
-    /* eslint-disable no-await-in-loop */
-    for (const periodo of períodosAsc) {
-      const duplicado = state.pagos.some((p) => p.alumnoId === alumno.id && p.periodo === periodo && p.estado === 'confirmado')
-      if (duplicado) {
-        errorList += `Período ${periodo} ya está confirmado.\n`
-        continue
-      }
-
-      const cuotaCalculadaBase = calculateProratedAmount(plan.precioMensual || 0, alumno.fechaAlta, periodo)
-      const { descuentoAplicado, final: montoFinal } = applyDiscount(cuotaCalculadaBase, promocion)
-      const estado = MEDIOS_DIGITALES.includes(medioPago) ? 'pendiente' : 'confirmado'
-
-      try {
-        await pagosService.registrarPago({
-          alumnoId: alumno.id,
-          sedeId: currentUser?.sedeId || alumno.sedePrincipalId,
-          fechaPago: new Date().toISOString().slice(0, 10),
-          periodo,
-          montoBase: cuotaCalculadaBase,
-          descuentoAplicado,
-          montoFinal,
-          medioPago,
-          estado,
-          reciboNumero: `RC-${Date.now()}${Math.floor(Math.random() * 999)}`,
-          registradoPorUsuarioId: currentUser.id,
-          promocionId: promocionId || null,
-          observacion: `Cobro desde sucursal — ${promocion?.nombre ?? 'sin promoción'}`,
-        })
-      } catch (e) {
-        errorList += `Período ${periodo}: ${e.message || 'Error al registrar'}.\n`
-        continue
-      }
-      okTotal += 1
+    for (const row of [...seleccionadosRows].sort((a, b) => a.per.localeCompare(b.per))) {
+      const creado = await pagosService.registrarPago({
+        alumnoId: alumno.id,
+        sedeId: currentUser?.sedeId || alumno.sedePrincipalId,
+        fechaPago: new Date().toISOString().slice(0, 10),
+        periodo: row.per,
+        montoBase: row.pactadoMes,
+        descuentoAplicado: row.descuento,
+        montoFinal: row.final,
+        medioPago,
+        estado,
+        reciboNumero,
+        registradoPorUsuarioId: currentUser.id,
+        promocionId: row.promocion?.id ?? null,
+        observacion: row.promocion
+          ? `Pago de ${seleccionadosRows.length} período(s) desde sucursal · promo "${row.promocion.nombre}" en ${row.per}`
+          : `Pago de ${seleccionadosRows.length} período(s) desde sucursal`,
+      })
+      creados.push(creado)
       await fakeApi.auditoria.registrar({
         usuarioId: currentUser.id,
         rol: currentUser.role,
-        accion: 'registrar_cuota_manual',
+        accion: 'registrar_pago_manual',
         modulo: 'pagos',
-        detalle: `${alumno.apellido}, ${alumno.nombre} · ${periodo} · ${medioPago} · ${estado}`,
+        detalle: `${alumno.apellido}, ${alumno.nombre} · ${row.per} · ${medioPago} · ${estado}${row.promocion ? ` · promo ${row.promocion.nombre}` : ''}`,
       })
     }
-    /* eslint-enable no-await-in-loop */
 
-    reload()
-
-    if (errorList.trim()) window.alert(okTotal ? `Se cargaron ${okTotal} período(s) con estas advertencias:\n${errorList}` : errorList)
-    if (okTotal) setMensaje(`${okTotal} cobro(s) registrado(s). Revisá el historial para ver recibo (si quedó confirmado).`)
-
+    setProcesandoPago(false)
+    setPagoModalOpen(false)
     setPeriodosSeleccionados(new Set())
+    setPromocionesPorPeriodo({})
+    setReciboPagosFallback(creados)
+    reload()
+    if (creados[0]?.id) {
+      window.setTimeout(() => setReciboModalId(creados[0].id), 0)
+    }
   }
 
   return (
     <section className="sg-grid registrar-cobro-flow">
-      <div className="sg-grid-inner-two">
-        <Card title="1. Socio">
-          <SearchableSelect
-            label="Buscá socio"
-            hint="Nombre, apellido, DNI, e-mail o sucursal principal"
-            placeholder="Texto para filtrar…"
-            options={opcionesAlumnos}
-            value={alumnoId}
-            onChange={alSeleccionarSocio}
-          />
-        </Card>
-        <Card title="2. Resumen rápido" subtitle="Sin duplicar toda la ficha médica deportiva — datos mínimos para cobrar bien.">
-          {!alumno ? (
-            <p>Elegí un socio para cargar contexto.</p>
-          ) : (
-            <div className="sg-datos-socio-mini">
-              <p><Badge tone="neutral">{state.sedes.find((x) => x.id === alumno.sedePrincipalId)?.nombre}</Badge></p>
-              <p><strong>{alumno.apellido}, {alumno.nombre}</strong></p>
-              <p>Plan: <strong>{plan?.nombre}</strong></p>
-              <p>Acceso: <Badge tone={alumno.puedeIngresar ? 'ok' : 'warn'}>{alumno.puedeIngresar ? 'Habilitado' : 'Suspendido hasta regularizar'}</Badge></p>
+      <Card
+        title="Socio"
+        actions={(
+          <div className="sg-socio-search-field">
+            <SearchableSelect
+              label=""
+              placeholder="Buscar por nombre, apellido o DNI…"
+              options={opcionesAlumnos}
+              value={alumnoId}
+              onChange={alSeleccionarSocio}
+            />
+          </div>
+        )}
+      />
+
+      <Card title="Resumen">
+        {!alumno ? (
+          <p className="sg-muted-mini">Elegí un socio.</p>
+        ) : (
+          <div className="sg-socio-summary-grid">
+            <div className="sg-socio-summary-item sg-socio-summary-item--main">
+              <span>Socio</span>
+              <strong>{alumno.apellido}, {alumno.nombre}</strong>
             </div>
-          )}
-        </Card>
-      </div>
-
-      {!alumno ? null : (
-        <Card title="Últimos cobros registrados para este socio" subtitle="Arriba: pendientes de acreditar u otros no confirmados; debajo, cobros confirmados. Orden por período (más reciente primero) dentro de cada grupo.">
-          <Table striped columns={['Período', 'Estado', 'Importe', 'Medio', 'Recibo']} rows={historiaRows} />
-        </Card>
-      )}
-
-      {!alumno ? null : (
-        <form className="sg-grid" onSubmit={ejecutarLiquidacion}>
-          <Card title="3. Cuotas mensuales y estado del socio" subtitle={`Últimos 14 períodos; ${pendientes.length} pueden sumarse porque todavía no tienen cobro confirmado.`}>
-            {!filasLiquidacionMes.length ? null : (
-              <Table
-                striped
-                columns={['Mes', 'Servicios pactados por plan', 'Cuota de ese mes', 'Estado ante el club', 'Incluír en este cobro']}
-                rows={filasLiquidacionMes.map((row) => ({
-                  key: row.per,
-                  cells: [
-                    row.per,
-                    (plan.actividadesIncluidas || []).slice(0, 2).join(', ') || 'Membresía',
-                    row.pactadoMes <= 0 ? '—' : formatCurrency(row.pactadoMes),
-                    row.pactadoMes <= 0 ? '—' : <Badge key={`sb-${row.per}`} tone={row.tone}>{row.estadoTxt}</Badge>,
-                    row.puedeRegistrar ? (
-                      <label key={`lbl-${row.per}`} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
-                        <input type="checkbox" checked={periodosSeleccionados.has(row.per)} onChange={() => togglePeriodo(row.per)} />
-                        <span className="sg-muted-mini">Sumar al lote actual</span>
-                      </label>
-                    ) : (
-                      <span className="sg-muted-mini">{row.pactadoMes <= 0 ? '—' : 'Cuota cerrada'}</span>
-                    ),
-                  ],
-                }))}
-              />
-            )}
-          </Card>
-
-          <div className="sg-grid-inner-two sg-align-start">
-            <Card title="4. Detalle del cobro" subtitle="Promoción aplicable opcionalmente y medio usando la nomenclatura del club (select).">
-              <Select label="Promoción institucional (opcional)" value={promocionId} onChange={(e) => setPromocionId(e.target.value)}>
-                <option value="">Sin promoción aplicada</option>
-                {promosFiltradas.map((p) => (
-                  <option key={p.id} value={p.id}>{p.nombre} ({p.tipo})</option>
-                ))}
-              </Select>
-              <small className="sg-muted">{ayudaCupones(plan?.nombre, promosFiltradas.length)}</small>
-              <MedioPagoSelector value={medioPago} onChange={setMedioPago} />
-              <small className="sg-muted">{MEDIOS_DIGITALES.includes(medioPago) ? 'Medio digital: el registro queda pendiente de acreditación.' : 'Efectivo en ventanilla: confirmado al momento.'}</small>
-              <Button type="submit">Registrar cobro seleccionado — {periodosSeleccionados.size} período(s)</Button>
-              {mensaje ? <small className="sg-success-mini">{mensaje}</small> : null}
-            </Card>
-
-            <div className="sg-preview-column">
-              <ResumenPago montoBase={cuotaEjemploPlan} descuento={descuento} montoFinal={final} />
-              <div className="sg-stats-mini-row">
-                <Stat label="Períodos marcados para el lote" value={periodosSeleccionados.size ? String(periodosSeleccionados.size) : '0'} />
-                <Stat label="Precio tabla membresía (sin prorrata)" value={plan ? formatCurrency(plan.precioMensual) : '—'} />
-              </div>
-              <p className="sg-muted-mini">El recado de importes usa como ejemplo el período cronológico <strong>{periodoPreview}</strong> y la promo elegida.</p>
+            <div className="sg-socio-summary-item">
+              <span>DNI</span>
+              <strong>{alumno.dni}</strong>
+            </div>
+            <div className="sg-socio-summary-item">
+              <span>Sucursal</span>
+              <strong>{sede?.nombre ?? '—'}</strong>
+            </div>
+            <div className="sg-socio-summary-item">
+              <span>Plan</span>
+              <strong>{plan?.nombre ?? '—'}</strong>
+            </div>
+            <div className="sg-socio-summary-item">
+              <span>Acceso</span>
+              <strong><Badge tone={accesoHabilitado ? 'ok' : 'warn'}>{accesoHabilitado ? 'Habilitado' : 'Suspendido'}</Badge></strong>
             </div>
           </div>
-        </form>
+        )}
+      </Card>
+
+      {!alumno ? null : (
+        <Card title="Períodos">
+          <div className="sg-pagos-periodos-table">
+            <Table
+              striped
+              columns={['Período', 'Plan', 'Monto', 'Promoción', 'Final', 'Estado', 'Acción']}
+              rows={pageRows.map((row) => {
+                const isSelected = periodosSeleccionados.has(row.per)
+                const promoPeriodoId = promocionesPorPeriodo[row.per] ?? ''
+                const promoPeriodo = promosVigentesById[promoPeriodoId] ?? null
+                const montoPeriodo = applyDiscount(row.pactadoMes, promoPeriodo)
+                const promocionCell = row.puedeSeleccionar ? (
+                  <Select
+                    label=""
+                    value={promoPeriodoId}
+                    onChange={(event) => seleccionarPromocionPeriodo(row.per, event.target.value)}
+                    disabled={!promosVigentes.length}
+                  >
+                    <option value="">{promosVigentes.length ? 'Sin promoción' : 'Sin promos vigentes'}</option>
+                    {promosVigentes.map((promo) => (
+                      <option key={promo.id} value={promo.id}>
+                        {promo.nombre} · {promo.tipo === 'porcentaje' ? `${promo.valor}%` : formatCurrency(promo.valor)}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <span className="sg-muted-mini">—</span>
+                )
+                let accion
+                if (row.pactadoMes <= 0) {
+                  accion = <span className="sg-muted-mini">—</span>
+                } else if (row.recibo) {
+                  accion = (
+                    <Button type="button" kind="ghost" onClick={() => setReciboModalId(row.recibo.id)}>
+                      Ver recibo
+                    </Button>
+                  )
+                } else if (row.puedeSeleccionar) {
+                  accion = (
+                    <Button
+                      type="button"
+                      kind={isSelected ? 'secondary' : 'primary'}
+                      onClick={() => togglePeriodo(row.per)}
+                      aria-pressed={isSelected}
+                    >
+                      {isSelected ? '✓ Agregado' : '+ Agregar'}
+                    </Button>
+                  )
+                } else {
+                  accion = <span className="sg-muted-mini">—</span>
+                }
+                return {
+                  key: row.per,
+                  className: isSelected ? 'sg-pago-row-selected' : undefined,
+                  cells: [
+                    row.per,
+                    plan?.nombre ?? '—',
+                    row.pactadoMes <= 0 ? '—' : formatCurrency(row.pactadoMes),
+                    promocionCell,
+                    row.pactadoMes <= 0 ? '—' : formatCurrency(montoPeriodo.final),
+                    row.pactadoMes <= 0 ? '—' : <Badge key={`sb-${row.per}`} tone={row.tone}>{row.estadoTxt}</Badge>,
+                    accion,
+                  ],
+                }
+              })}
+            />
+          </div>
+          <div className="sg-table-pager">
+            <Button type="button" kind="ghost" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</Button>
+            <span>{page + 1} / {totalPages}</span>
+            <Button type="button" kind="ghost" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>Siguiente</Button>
+          </div>
+
+          <div className="sg-pago-summary-line">
+            <div className="sg-pago-summary-item">
+              <span>Períodos seleccionados</span>
+              <strong>{periodosSeleccionados.size}</strong>
+            </div>
+            {descuentoSeleccionado > 0 ? (
+              <div className="sg-pago-summary-item sg-pago-summary-item--discount">
+                <span>Descuento</span>
+                <strong>- {formatCurrency(descuentoSeleccionado)}</strong>
+              </div>
+            ) : null}
+            <div className="sg-pago-summary-item">
+              <span>Total</span>
+              <strong>{formatCurrency(totalSeleccionado)}</strong>
+            </div>
+            <Button type="button" disabled={!periodosSeleccionados.size} onClick={() => setPagoModalOpen(true)}>
+              Registrar pago
+            </Button>
+          </div>
+        </Card>
       )}
+
+      <RegistrarPagoModal
+        open={pagoModalOpen}
+        alumno={alumno}
+        plan={plan}
+        periodos={seleccionadosRows}
+        medioPago={medioPago}
+        setMedioPago={setMedioPago}
+        procesando={procesandoPago}
+        onClose={() => setPagoModalOpen(false)}
+        onConfirm={registrarPagoSeleccionado}
+      />
+
+      <ReciboDigitalModal
+        open={Boolean(reciboModalId)}
+        pagoId={reciboModalId}
+        pagosFallback={reciboPagosFallback}
+        onClose={() => {
+          setReciboModalId(null)
+          setReciboPagosFallback([])
+        }}
+      />
     </section>
   )
-}
-
-function ayudaCupones(nombrePlan, n) {
-  if (!nombrePlan) return 'Sin plan asociado al socio seleccionado.'
-  if (!n) return `No hay promociones vigentes compatibles para ${nombrePlan}.`
-  return `${n} promoción(es) vigentes compatibles con el plan ${nombrePlan}.`
 }

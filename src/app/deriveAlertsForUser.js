@@ -155,15 +155,6 @@ export function deriveAlertsForUser(state, currentUser) {
   }
 
   if (rol === ROLES.ADMINISTRADOR) {
-    const nSoc = sociosSinCobro(null)
-    if (nSoc > 0) {
-      out.push({
-        id: 'morosidad-red',
-        title: 'Socios sin cobro (red)',
-        summary: `${nSoc} activo(s) sin pago confirmado en ${per}.`,
-        to: '/pagos/reporte',
-      })
-    }
     const nStock = stockIrregular(null)
     if (nStock > 0) {
       out.push({

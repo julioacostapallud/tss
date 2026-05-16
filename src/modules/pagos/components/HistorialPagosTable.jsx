@@ -1,13 +1,16 @@
 /* eslint-disable react/prop-types */
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
 import { Table, Badge, Button } from '../../../components/common/UI'
 import { formatCurrency } from '../../../shared/utils/formatCurrency'
 import { ROLES } from '../../../shared/constants/roles'
 import { etiquetaMedioPago } from '../../../shared/constants/mediosPago'
 import { pagosService } from '../services/pagos.service'
 import { fakeApi } from '../../../fakeApi'
+import { ReciboDigitalModal } from './ReciboDigitalModal'
 
 export function HistorialPagosTable({ pagos, role, reload, currentUser }) {
+  const [reciboModalId, setReciboModalId] = useState(null)
+
   async function confirmar(item) {
     await pagosService.confirmarPago(item.id)
     await fakeApi.auditoria.registrar({
@@ -34,7 +37,7 @@ export function HistorialPagosTable({ pagos, role, reload, currentUser }) {
       ),
       (
         <div key={`acts-${item.id}`} className="sg-row-actions-inline">
-          <NavLink className="sg-button sg-secondary" to={`/pagos/recibo/${item.id}`}>Ver recibo</NavLink>
+          <Button type="button" kind="secondary" onClick={() => setReciboModalId(item.id)}>Ver recibo</Button>
           {role === ROLES.ADMINISTRADOR && item.estado === 'pendiente' ? (
             <Button type="button" kind="ghost" onClick={() => confirmar(item)}>Confirmar</Button>
           ) : null}
@@ -44,9 +47,12 @@ export function HistorialPagosTable({ pagos, role, reload, currentUser }) {
   }))
 
   return (
-    <Table
-      columns={['Período', 'Fecha cobro registrada', 'Sucursal', 'Socio', 'Monto', 'Medio', 'Estado', 'Acciones']}
-      rows={rows}
-    />
+    <>
+      <Table
+        columns={['Período', 'Fecha cobro registrada', 'Sucursal', 'Socio', 'Monto', 'Medio', 'Estado', 'Acciones']}
+        rows={rows}
+      />
+      <ReciboDigitalModal open={Boolean(reciboModalId)} pagoId={reciboModalId} onClose={() => setReciboModalId(null)} />
+    </>
   )
 }

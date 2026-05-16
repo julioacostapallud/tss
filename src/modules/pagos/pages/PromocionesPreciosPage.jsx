@@ -19,6 +19,11 @@ const TIPOS_MEMBRESIA_PLAN = [
   { value: 'premium', label: 'Premium' },
 ]
 
+const TIPOS_PLAN_PROMO = [
+  { value: 'individual', label: 'Plan individual' },
+  { value: 'grupo-familiar', label: 'Plan familiar' },
+]
+
 function emptyPlanModal() {
   return {
     nombre: '',
@@ -54,7 +59,7 @@ function emptyForm(alCrear) {
     activa: true,
     condiciones: '',
     ambito: 'cuotas',
-    restringirPlanes: false,
+    aplicaTiposPlan: TIPOS_PLAN_PROMO.map((t) => t.value),
     aplicaAPlanIds: [],
     categoriaKiosco: '',
   }
@@ -83,6 +88,19 @@ function textoPromoCompleto(pr, planes, productos) {
     pr.aplicarAKiosco ? resumenKiosco(pr, productos) : '',
   ].filter(Boolean)
   return chunks.join(' ').toLowerCase()
+}
+
+function planIdsPorTipos(tipos, planes) {
+  const setTipos = new Set(tipos)
+  return planes.filter((pl) => setTipos.has(pl.tipoMembresia)).map((pl) => pl.id)
+}
+
+function tiposPorPlanIds(planIds, planes) {
+  if (!planIds?.length) return TIPOS_PLAN_PROMO.map((t) => t.value)
+  const ids = new Set(planIds)
+  return TIPOS_PLAN_PROMO
+    .filter((tipo) => planes.some((pl) => ids.has(pl.id) && pl.tipoMembresia === tipo.value))
+    .map((tipo) => tipo.value)
 }
 
 function PromoModal({ open, titulo, onClose, children }) {
@@ -293,7 +311,7 @@ export default function PromocionesPreciosPage() {
       activa: pr.activa,
       condiciones: pr.condiciones || '',
       ambito: esCuotas ? 'cuotas' : 'kiosco',
-      restringirPlanes: planIds.length > 0,
+      aplicaTiposPlan: tiposPorPlanIds(planIds, state.planes),
       aplicaAPlanIds: planIds,
       categoriaKiosco: esCuotas ? '' : prod0?.categoria ?? categoriasKiosco[0] ?? '',
     })
@@ -316,9 +334,13 @@ export default function PromocionesPreciosPage() {
 
     let aplicaAPlanIds = []
     if (esCuotas) {
-      aplicaAPlanIds = form.restringirPlanes ? form.aplicaAPlanIds : []
-      if (form.restringirPlanes && aplicaAPlanIds.length === 0) {
-        window.alert('Marcá al menos un plan o quitá la restricción.')
+      if (!form.aplicaTiposPlan.length) {
+        window.alert('Elegí al menos un tipo de plan.')
+        return
+      }
+      aplicaAPlanIds = planIdsPorTipos(form.aplicaTiposPlan, state.planes)
+      if (aplicaAPlanIds.length === 0) {
+        window.alert('No hay planes cargados para ese tipo.')
         return
       }
     }
@@ -363,11 +385,11 @@ export default function PromocionesPreciosPage() {
     reload()
   }
 
-  function togglePlan(planId, on) {
-    const s = new Set(form.aplicaAPlanIds)
-    if (on) s.add(planId)
-    else s.delete(planId)
-    setForm({ ...form, aplicaAPlanIds: [...s] })
+  function toggleTipoPlan(tipo, on) {
+    const s = new Set(form.aplicaTiposPlan)
+    if (on) s.add(tipo)
+    else s.delete(tipo)
+    setForm({ ...form, aplicaTiposPlan: [...s] })
   }
 
   const filasProductos = useMemo(
@@ -424,31 +446,19 @@ export default function PromocionesPreciosPage() {
         <Input label="Válida hasta" type="date" value={form.vigenteHasta} onChange={(e) => setForm({ ...form, vigenteHasta: e.target.value })} />
       </div>
       <Select label="Aplica a" value={form.ambito} onChange={(e) => setForm({ ...form, ambito: e.target.value })}>
-        <option value="cuotas">Solo cobro de cuotas (secretaría)</option>
-        <option value="kiosco">Solo ventas del kiosco (lista de esa categoría)</option>
+        <option value="cuotas">Planes</option>
+        <option value="kiosco">Kiosco</option>
       </Select>
       {form.ambito === 'cuotas' ? (
         <div className="sg-grid" style={{ gap: '.35rem' }}>
-          <label className="sg-checkbox-line">
-            <input
-              type="checkbox"
-              checked={form.restringirPlanes}
-              onChange={(e) =>
-                setForm({ ...form, restringirPlanes: e.target.checked, aplicaAPlanIds: e.target.checked ? form.aplicaAPlanIds : [] })
-              }
-            />
-            Limitar a algunos planes (si no, vale para todos)
-          </label>
-          {!form.restringirPlanes ? null : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem .75rem', marginLeft: '.15rem' }}>
-              {state.planes.map((pl) => (
-                <label key={pl.id} className="sg-checkbox-line">
-                  <input type="checkbox" checked={form.aplicaAPlanIds.includes(pl.id)} onChange={(e) => togglePlan(pl.id, e.target.checked)} />
-                  {pl.nombre}
-                </label>
-              ))}
-            </div>
-          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem .75rem', marginLeft: '.15rem' }}>
+            {TIPOS_PLAN_PROMO.map((tipo) => (
+              <label key={tipo.value} className="sg-checkbox-line">
+                <input type="checkbox" checked={form.aplicaTiposPlan.includes(tipo.value)} onChange={(e) => toggleTipoPlan(tipo.value, e.target.checked)} />
+                {tipo.label}
+              </label>
+            ))}
+          </div>
         </div>
       ) : (
         <Select label="Categoría de productos del kiosco" value={form.categoriaKiosco} onChange={(e) => setForm({ ...form, categoriaKiosco: e.target.value })}>
@@ -484,7 +494,7 @@ export default function PromocionesPreciosPage() {
             id="tab-cuotas"
             onClick={() => setTab(TABS.CUOTAS)}
           >
-            Cuotas
+            Planes
           </button>
           <button
             type="button"
@@ -587,7 +597,7 @@ export default function PromocionesPreciosPage() {
                   </Select>
                   <Select label="Ámbito" value={filtPromoAmbito} onChange={(e) => setFiltPromoAmbito(e.target.value)}>
                     <option value="">Todos</option>
-                    <option value="cuotas">Cuotas</option>
+                    <option value="cuotas">Planes</option>
                     <option value="kiosco">Kiosco</option>
                   </Select>
                 </div>
@@ -601,7 +611,7 @@ export default function PromocionesPreciosPage() {
                       const lineaResumen = [
                         pr.tipo === 'porcentaje' ? `${pr.valor}%` : formatCurrency(pr.valor),
                         `${pr.vigenteDesde} a ${pr.vigenteHasta}`,
-                        pr.aplicarACuotas ? `Cuotas: ${resumenPlanes(pr.aplicaAPlanIds, state.planes)}` : null,
+                        pr.aplicarACuotas ? `Planes: ${resumenPlanes(pr.aplicaAPlanIds, state.planes)}` : null,
                         pr.aplicarAKiosco ? `Kiosco: ${resumenKiosco(pr, state.productos)}` : null,
                       ]
                         .filter(Boolean)
